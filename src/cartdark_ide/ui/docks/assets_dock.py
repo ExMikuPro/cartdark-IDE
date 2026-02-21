@@ -68,16 +68,18 @@ class AssetsDock(QDockWidget):
         root = QTreeWidgetItem(self.assets_tree, ["资源"])
         root.setIcon(0, get_icon("文件夹"))
 
+        # 添加并列的依赖、资源、输入节点
         dependencies = QTreeWidgetItem(root, ["依赖"])
         dependencies.setIcon(0, get_icon("依赖"))
 
-        test = QTreeWidgetItem(root, ["测试"])
-        test.setIcon(0, get_icon("文件夹"))
+        resources = QTreeWidgetItem(root, ["资源"])
+        resources.setIcon(0, get_icon("文件夹"))
 
-        input_folder = QTreeWidgetItem(test, ["输入"])
+        input_folder = QTreeWidgetItem(root, ["输入"])
         input_folder.setIcon(0, get_icon("输入"))
 
-        main_file = QTreeWidgetItem(input_folder, ["主文件"])
+        # 在资源节点下添加主文件
+        main_file = QTreeWidgetItem(resources, ["主文件"])
         main_file.setIcon(0, get_icon("代码文件"))
 
         self.assets_tree.expandAll()
