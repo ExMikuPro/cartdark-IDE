@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 import os
 import re
+from ..icons import get_icon
 
 
 class NewProjectDialog(QDialog):
@@ -176,6 +177,7 @@ class NewProjectDialog(QDialog):
 
         self.project_tree = QTreeWidget()
         self.project_tree.setHeaderHidden(True)
+        self.project_tree.setSortingEnabled(False)
         tree_layout.addWidget(self.project_tree)
 
         form_layout.addWidget(tree_group)
@@ -224,13 +226,13 @@ class NewProjectDialog(QDialog):
             template_id = current.data(Qt.UserRole)
             self.template = template_id
             self.template_description.setText(self.templates[template_id]["description"])
-            
+
             # 根据模板类型控制显示选项的可见性
             if template_id == "cartdark_os":
                 self.display_group.hide()
             else:
                 self.display_group.show()
-                
+
             self.update_project_tree()
 
     def on_project_name_changed(self, text):
@@ -273,30 +275,54 @@ class NewProjectDialog(QDialog):
         # 根节点
         root_item = QTreeWidgetItem(self.project_tree, [self.project_name])
 
-        # 添加文件
-        cart_file = QTreeWidgetItem(root_item, [f"{self.project_name}.cart"])
-        # 添加项目名.pack.json 文件
-        pack_file = QTreeWidgetItem(root_item, [f"{self.project_name}.pack.json"])
+        # 收集所有顶层条目：(is_folder, name, children)
+        entries = []
 
-        # 添加选项文件
+        # 普通文件
+        entries.append((False, f"{self.project_name}.cart", []))
+        entries.append((False, f"{self.project_name}.pack.json", []))
+
+        # 选项文件
         if self.create_readme_check.isChecked():
-            QTreeWidgetItem(root_item, ["README.md"])
-
+            entries.append((False, "README.md", []))
         if self.create_gitignore_check.isChecked():
-            QTreeWidgetItem(root_item, [".gitignore"])
+            entries.append((False, ".gitignore", []))
 
-        # 只有在选择 cartdark-os 模板时添加 input 和 main 文件夹
+        # cartdark-os 模板专属文件夹
         if self.template == "cartdark_os":
-            # 添加 input 文件夹
-            input_item = QTreeWidgetItem(root_item, ["input"])
-            # 在 input 文件夹中添加 input.input_binding 文件
-            QTreeWidgetItem(input_item, ["input.input_binding"])
+            entries.append((True, "input", ["input.input_binding"]))
+            entries.append((True, "main", ["Layer0.collection", "Layer1.collection"]))
+            entries.append((True, "res", []))
 
-            # 添加 main 文件夹
-            main_item = QTreeWidgetItem(root_item, ["main"])
-            # 在 main 文件夹中添加 Layer0.collection 和 Layer1.collection 文件
-            QTreeWidgetItem(main_item, ["Layer0.collection"])
-            QTreeWidgetItem(main_item, ["Layer1.collection"])
+        # 统一排序：文件夹在前，同类按 a-z（忽略大小写和前导点）
+        entries.sort(key=lambda x: (not x[0], x[1].lstrip(".").lower()))
+
+        # 添加到树
+        for is_folder, name, children in entries:
+            item = QTreeWidgetItem(root_item, [name])
+            if is_folder:
+                if name == "input":
+                    # input 文件夹使用输入图标
+                    item.setIcon(0, get_icon("input"))
+                    for child_name in sorted(children, key=lambda n: n.lower()):
+                        child_item = QTreeWidgetItem(item, [child_name])
+                        # input 文件夹内的文件也使用输入图标
+                        child_item.setIcon(0, get_icon("input"))
+                elif name == "res":
+                    # res 文件夹使用依赖图标
+                    item.setIcon(0, get_icon("dependency"))
+                    for child_name in sorted(children, key=lambda n: n.lower()):
+                        child_item = QTreeWidgetItem(item, [child_name])
+                        child_item.setIcon(0, get_icon("file"))
+                else:
+                    # 其他文件夹使用文件夹图标
+                    item.setIcon(0, get_icon("folder"))
+                    for child_name in sorted(children, key=lambda n: n.lower()):
+                        child_item = QTreeWidgetItem(item, [child_name])
+                        child_item.setIcon(0, get_icon("file"))
+            else:
+                # 文件图标
+                item.setIcon(0, get_icon("file"))
 
         # 展开所有节点
         self.project_tree.expandAll()
