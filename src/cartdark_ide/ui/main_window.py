@@ -31,6 +31,11 @@ class MainWindow(QMainWindow):
         self._create_bottom_panel()
 
         register_shortcuts(self)
+        
+        # 连接新建项目信号
+        # 注意：actions 是在 create_menu_bar 中创建的，这里需要从 menu_bar 中获取
+        # 或者在 create_menu_bar 函数中返回 actions
+        # 为了避免修改太多，我们在 open_new_project_dialog 中直接创建对话框
 
     def _create_left_panels(self):
         self.assets_dock = AssetsDock()
@@ -48,6 +53,18 @@ class MainWindow(QMainWindow):
         # ★ 不再传 dark 参数，BottomDock 自己读 palette
         self.bottom_dock = BottomDock()
         self.addDockWidget(Qt.BottomDockWidgetArea, self.bottom_dock)
+    
+    def open_new_project_dialog(self):
+        """打开新建项目对话框"""
+        from .dialogs.new_project_dialog import NewProjectDialog
+        dialog = NewProjectDialog(self)
+        dialog.project_created.connect(self.on_project_created)
+        dialog.exec()
+    
+    def on_project_created(self, config):
+        """项目创建回调"""
+        # 这里可以处理项目创建后的逻辑
+        print(f"Project created with config: {config}")
 
 if __name__ == "__main__":
     app = QApplication([])

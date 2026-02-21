@@ -6,6 +6,7 @@ def create_actions(window):
 
     # 文件操作
     actions["new"] = QAction("新建", window)
+    actions["new_project"] = QAction("新建项目...", window)
     actions["open"] = QAction("打开", window)
     actions["save"] = QAction("保存", window)
     actions["exit"] = QAction("退出", window)

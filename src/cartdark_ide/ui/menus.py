@@ -18,6 +18,9 @@ def create_menu_bar(window):
     
     # 文件菜单
     file_menu.addAction(actions["new"])
+    new_project_action = actions["new_project"]
+    new_project_action.triggered.connect(window.open_new_project_dialog)
+    file_menu.addAction(new_project_action)
     file_menu.addAction(actions["open"])
     file_menu.addAction(actions["save"])
     file_menu.addSeparator()
