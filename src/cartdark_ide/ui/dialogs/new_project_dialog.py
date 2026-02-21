@@ -319,10 +319,25 @@ class NewProjectDialog(QDialog):
                     item.setIcon(0, get_icon("folder"))
                     for child_name in sorted(children, key=lambda n: n.lower()):
                         child_item = QTreeWidgetItem(item, [child_name])
-                        child_item.setIcon(0, get_icon("file"))
+                        # .collection 文件使用图层图标
+                        if child_name.endswith(".collection"):
+                            child_item.setIcon(0, get_icon("layer"))
+                        else:
+                            child_item.setIcon(0, get_icon("file"))
             else:
                 # 文件图标
-                item.setIcon(0, get_icon("file"))
+                if name.endswith(".md"):
+                    # md 文件使用代码文件图标
+                    item.setIcon(0, get_icon("code"))
+                elif name.endswith(".json"):
+                    # json 文件使用结构体图标
+                    item.setIcon(0, get_icon("struct"))
+                elif name == ".gitignore":
+                    # .gitignore 文件使用不使用图标
+                    item.setIcon(0, get_icon("unused"))
+                else:
+                    # 其他文件使用文件图标
+                    item.setIcon(0, get_icon("file"))
 
         # 展开所有节点
         self.project_tree.expandAll()

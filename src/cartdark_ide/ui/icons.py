@@ -11,7 +11,10 @@ _icon_files = {
     "code": "代码文件.png",
     "dependency": "依赖.png",
     "settings": "设置.png",
-    "input": "输入.png"
+    "input": "输入.png",
+    "struct": "结构体.png",
+    "unused": "不使用.png",
+    "layer": "图层.png"
 }
 
 def get_icon(name):
