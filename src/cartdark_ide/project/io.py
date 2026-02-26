@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import os
 
-from .schema import CartProject, DisplayConfig, BootstrapConfig
+from .schema import CartProject, DisplayConfig, BootstrapConfig, BootstrapLayer
 
 
 class ProjectLoadError(Exception):
@@ -48,14 +48,39 @@ def load_cart(cart_path: str) -> CartProject:
 
         bootstrap = None
         if bootstrap_data:
-            bootstrap = BootstrapConfig(
-                main_collection=bootstrap_data.get("main_collection", "")
-            )
+            # 优先读新格式 bootstrap.layers
+            if "layers" in bootstrap_data:
+                layers = []
+                for l in bootstrap_data["layers"]:
+                    layers.append(BootstrapLayer(
+                        id=l.get("id", 0),
+                        collection=l.get("collection", ""),
+                        alpha=l.get("alpha", 255),
+                        enabled=l.get("enabled", True),
+                    ))
+                bootstrap = BootstrapConfig(
+                    mode=bootstrap_data.get("mode", "LTDC"),
+                    layers=layers,
+                )
+            else:
+                # fallback：旧格式 bootstrap.main_collection → 映射为 layer0
+                main_col = bootstrap_data.get("main_collection", "/main/Layer0.collection")
+                bootstrap = BootstrapConfig(
+                    mode="LTDC",
+                    layers=[
+                        BootstrapLayer(id=0, collection=main_col,
+                                       alpha=255, enabled=True),
+                        BootstrapLayer(id=1, collection="/main/Layer1.collection",
+                                       alpha=255, enabled=True),
+                    ],
+                )
 
         return CartProject(
+            format=data.get("format", "CART_PROJECT"),
             version=data.get("version", 1),
             name=project_info.get("name", os.path.basename(os.path.dirname(cart_path))),
             template=project_info.get("template", "blank"),
+            project_id=project_info.get("id", ""),
             display=display,
             bootstrap=bootstrap,
         )

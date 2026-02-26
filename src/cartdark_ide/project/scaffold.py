@@ -7,9 +7,10 @@ from __future__ import annotations
 import json
 import os
 import random
+import uuid
 
 from .schema import (
-    CartProject, DisplayConfig, BootstrapConfig,
+    CartProject, DisplayConfig, BootstrapConfig, BootstrapLayer,
     PackJson, PackMeta, PackIcon, PackHash, PackBuild, PackChunk,
 )
 
@@ -30,6 +31,11 @@ def _generate_cart_id() -> str:
     """生成随机 cart_id，格式为 0x + 16位十六进制"""
     value = random.getrandbits(64)
     return f"0x{value:016X}"
+
+
+def _generate_project_id() -> str:
+    """生成 UUID v4 字符串作为 project.id"""
+    return str(uuid.uuid4())
 
 
 def _write_json(path: str, data: dict) -> None:
@@ -126,10 +132,11 @@ class _BlankBuilder:
         project = CartProject(
             name=self.name,
             template="blank",
+            project_id=_generate_project_id(),
             display=DisplayConfig(
                 width=self.display.get("width", 800),
                 height=self.display.get("height", 480),
-                format=self.display.get("format", "ARGB8888"),
+                format="ARGB8888",
             ),
         )
         path = os.path.join(self.root, f"{self.name}.cart")
@@ -216,13 +223,20 @@ class _CartdarkOsBuilder(_BlankBuilder):
         project = CartProject(
             name=self.name,
             template="cartdark_os",
+            project_id=_generate_project_id(),
             display=DisplayConfig(
                 width=self.display.get("width", 800),
                 height=self.display.get("height", 480),
-                format=self.display.get("format", "ARGB8888"),
+                format="ARGB8888",
             ),
             bootstrap=BootstrapConfig(
-                main_collection="/main/Layer0.collection"
+                mode="LTDC",
+                layers=[
+                    BootstrapLayer(id=0, collection="/main/Layer0.collection",
+                                   alpha=255, enabled=True),
+                    BootstrapLayer(id=1, collection="/main/Layer1.collection",
+                                   alpha=255, enabled=True),
+                ],
             ),
         )
         path = os.path.join(self.root, f"{self.name}.cart")

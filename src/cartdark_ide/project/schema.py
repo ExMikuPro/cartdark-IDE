@@ -19,25 +19,55 @@ class DisplayConfig:
 
 
 @dataclass
+class BootstrapLayer:
+    id: int = 0
+    collection: str = "/main/Layer0.collection"
+    alpha: int = 255
+    enabled: bool = True
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "collection": self.collection,
+            "alpha": self.alpha,
+            "enabled": self.enabled,
+        }
+
+
+@dataclass
 class BootstrapConfig:
-    main_collection: str = "/main/Layer0.collection"
+    mode: str = "LTDC"
+    layers: list = field(default_factory=lambda: [
+        BootstrapLayer(id=0, collection="/main/Layer0.collection"),
+        BootstrapLayer(id=1, collection="/main/Layer1.collection"),
+    ])
+
+    def to_dict(self) -> dict:
+        return {
+            "mode": self.mode,
+            "layers": [l.to_dict() for l in self.layers],
+        }
 
 
 @dataclass
 class CartProject:
     """对应 .cart 文件的完整结构"""
+    format: str = "CART_PROJECT"
     version: int = 1
     name: str = ""
     template: str = "blank"       # blank | cartdark_os
+    project_id: str = ""          # UUID v4
     display: DisplayConfig = field(default_factory=DisplayConfig)
     bootstrap: Optional[BootstrapConfig] = None
 
     def to_dict(self) -> dict:
         d: dict = {
+            "format": self.format,
             "version": self.version,
             "project": {
                 "name": self.name,
                 "template": self.template,
+                "id": self.project_id,
             },
             "display": {
                 "width": self.display.width,
@@ -46,9 +76,7 @@ class CartProject:
             },
         }
         if self.bootstrap:
-            d["bootstrap"] = {
-                "main_collection": self.bootstrap.main_collection
-            }
+            d["bootstrap"] = self.bootstrap.to_dict()
         return d
 
 
