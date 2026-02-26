@@ -69,7 +69,7 @@ class _TriggerTable(QWidget):
         self._layout.addWidget(self._title_lbl)
 
         self._table = QTableWidget(0, 2)
-        self._table.setHorizontalHeaderLabels(["Input", "Action"])
+        self._table.setHorizontalHeaderLabels(["输入", "Action"])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self._table.setColumnWidth(0, 180)
@@ -334,13 +334,13 @@ class InputBindingEditor(QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
 
-        self._title_lbl = QLabel("Input Bindings")
+        self._title_lbl = QLabel("输入绑定")
         self._title_lbl.setStyleSheet(f"color: {theme.FG_TITLE}; font-size: 20px; font-weight: bold;")
         layout.addWidget(self._title_lbl)
 
-        self._pin_table     = _TriggerTable("Pin Triggers",     self._pins)
-        self._touch_table   = _TriggerTable("Touch Triggers",   _TOUCH_INPUTS)
-        self._gamepad_table = _TriggerTable("Gamepad Triggers", _GAMEPAD_INPUTS)
+        self._pin_table     = _TriggerTable("引脚输入",     self._pins)
+        self._touch_table   = _TriggerTable("触摸输入",   _TOUCH_INPUTS)
+        self._gamepad_table = _TriggerTable("游戏手柄输入", _GAMEPAD_INPUTS)
 
         for tbl in (self._pin_table, self._touch_table, self._gamepad_table):
             tbl.changed.connect(lambda: self._set_modified(True))

@@ -72,8 +72,8 @@ class _ProjectPage(QWidget):
         self._template = QComboBox()
         self._template.addItems(["blank", "cartdark_os"])
 
-        self._lbl_name     = QLabel("Name")
-        self._lbl_template = QLabel("Template")
+        self._lbl_name     = QLabel("项目名称")
+        self._lbl_template = QLabel("模板")
         self._lbl_id       = QLabel("ID")
 
         _field_row(layout, self._lbl_name,     self._name)
@@ -181,9 +181,9 @@ class _DisplayPage(QWidget):
         self._format = QComboBox()
         self._format.addItems(["ARGB8888", "RGB888", "RGB565", "RGB555"])
 
-        self._lbl_w = QLabel("Width")
-        self._lbl_h = QLabel("Height")
-        self._lbl_f = QLabel("Format")
+        self._lbl_w = QLabel("水平分辨率")
+        self._lbl_h = QLabel("垂直分辨率")
+        self._lbl_f = QLabel("显示格式")
 
         _field_row(layout, self._lbl_w, self._width)
         _field_row(layout, self._lbl_h, self._height)
@@ -281,7 +281,7 @@ class _BootstrapPage(QWidget):
         self._div      = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
         _section_header(layout, self._title, self._subtitle, self._div)
 
-        self._lbl_mode = QLabel("Mode")
+        self._lbl_mode = QLabel("显示模式")
         self._mode = QComboBox(); self._mode.addItems(["LTDC"])
         _field_row(layout, self._lbl_mode, self._mode)
         layout.addSpacing(8)
@@ -295,8 +295,8 @@ class _BootstrapPage(QWidget):
 
         self._l0_col, self._l0_browse = self._make_collection_row()
         self._l0_alpha   = QSpinBox(); self._l0_alpha.setRange(0, 255)
-        self._l0_enabled = QCheckBox("Enabled")
-        self._lbl_l0c = QLabel("Collection"); self._lbl_l0a = QLabel("Alpha"); self._lbl_l0e = QLabel("Enabled")
+        self._l0_enabled = QCheckBox("启用")
+        self._lbl_l0c = QLabel("集合"); self._lbl_l0a = QLabel("透明度"); self._lbl_l0e = QLabel("开启")
         _field_row(layout, self._lbl_l0c, self._l0_col, self._l0_browse)
         _field_row(layout, self._lbl_l0a, self._l0_alpha)
         _field_row(layout, self._lbl_l0e, self._l0_enabled)
@@ -311,8 +311,8 @@ class _BootstrapPage(QWidget):
 
         self._l1_col, self._l1_browse = self._make_collection_row()
         self._l1_alpha   = QSpinBox(); self._l1_alpha.setRange(0, 255)
-        self._l1_enabled = QCheckBox("Enabled")
-        self._lbl_l1c = QLabel("Collection"); self._lbl_l1a = QLabel("Alpha"); self._lbl_l1e = QLabel("Enabled")
+        self._l1_enabled = QCheckBox("启用")
+        self._lbl_l1c = QLabel("集合"); self._lbl_l1a = QLabel("透明度"); self._lbl_l1e = QLabel("开启")
         _field_row(layout, self._lbl_l1c, self._l1_col, self._l1_browse)
         _field_row(layout, self._lbl_l1a, self._l1_alpha)
         _field_row(layout, self._lbl_l1e, self._l1_enabled)
