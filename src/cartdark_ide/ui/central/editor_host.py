@@ -185,7 +185,7 @@ class _CodeEditor(QPlainTextEdit):
 
 class EditorHost(QWidget):
     """
-    单文件编辑器。
+    单文件编辑器（纯文本 + 语法高亮）。
 
     信号
     ----
@@ -251,3 +251,15 @@ class EditorHost(QWidget):
     def _on_modified(self, modified: bool):
         self._modified = modified
         self.modified_changed.emit(modified)
+
+
+def make_editor(file_path: str, parent=None) -> QWidget:
+    """
+    工厂函数：根据文件扩展名返回合适的编辑器。
+    返回的对象保证有 file_path / modified 属性和 save() / modified_changed 信号。
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".input_binding":
+        from .input_binding_editor import InputBindingEditor
+        return InputBindingEditor(file_path, parent)
+    return EditorHost(file_path, parent)

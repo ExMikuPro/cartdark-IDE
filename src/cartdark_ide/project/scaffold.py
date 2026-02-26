@@ -85,9 +85,28 @@ Thumbs.db
 
 _INPUT_BINDING_TEMPLATE = """\
 {{
+  "format": "CART_INPUT_BINDING",
   "version": 1,
-  "bindings": []
+  "name": "{name}",
+  "pin_triggers": [],
+  "touch_triggers": [],
+  "gamepad_triggers": []
 }}
+"""
+
+
+_PINS_JSON_TEMPLATE = """\
+{
+  "format": "CART_BOARD_PINS",
+  "version": 1,
+  "name": "Board Template Pins",
+  "pins": [
+    { "id": "PA0",  "label": "PA0",  "tags": ["gpio", "exti"] },
+    { "id": "PA1",  "label": "PA1",  "tags": ["gpio"] },
+    { "id": "PB12", "label": "PB12", "tags": ["gpio"] },
+    { "id": "PC13", "label": "PC13", "tags": ["gpio", "wkup"] }
+  ]
+}
 """
 
 _COLLECTION_TEMPLATE = """\
@@ -199,6 +218,7 @@ class _CartdarkOsBuilder(_BlankBuilder):
         # 创建所有目录
         _make_dirs(
             self.root,
+            os.path.join(self.root, "board"),
             os.path.join(self.root, "input"),
             os.path.join(self.root, "main"),
             os.path.join(self.root, "res"),
@@ -210,6 +230,7 @@ class _CartdarkOsBuilder(_BlankBuilder):
 
         # cartdark-os 专属文件
         self._write_input_binding()
+        self._write_pins_json()
         self._write_collections()
 
         if self.options.get("create_readme", True):
@@ -286,8 +307,14 @@ class _CartdarkOsBuilder(_BlankBuilder):
 
     def _write_input_binding(self):
         _write_text(
-            os.path.join(self.root, "input", "input.input_binding"),
-            _INPUT_BINDING_TEMPLATE,
+            os.path.join(self.root, "input", "game.input_binding"),
+            _INPUT_BINDING_TEMPLATE.format(name=self.name),
+        )
+
+    def _write_pins_json(self):
+        _write_text(
+            os.path.join(self.root, "board", "pins.json"),
+            _PINS_JSON_TEMPLATE,
         )
 
     def _write_collections(self):

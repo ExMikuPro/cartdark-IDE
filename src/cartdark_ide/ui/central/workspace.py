@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget, QMessageBox
 from PySide6.QtCore import Qt
 
 from .welcome_page import WelcomePage
-from .editor_host import EditorHost
+from .editor_host import EditorHost, make_editor
 from ..widgets.tab_header import TabHeader
 
 
@@ -60,8 +60,8 @@ class Workspace(QWidget):
             self._stack.setCurrentWidget(self._editors[file_path])
             return
 
-        # 新建编辑器
-        editor = EditorHost(file_path)
+        # 新建编辑器（工厂函数按扩展名选择合适的编辑器）
+        editor = make_editor(file_path)
         editor.modified_changed.connect(
             lambda mod, fp=file_path: self._on_editor_modified(fp, mod)
         )

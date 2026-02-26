@@ -210,6 +210,11 @@ class AssetsDock(QDockWidget):
                 "function update(dt)\n"
                 "  -- dt: 秒（float），默认固定 0.010\n"
                 "end\n"
+                "\n"
+                "function input(action, event)\n"
+                "  -- action: 例如 \"ok\" / \"back\" / \"up\"\n"
+                "  -- event: \"press\" / \"release\"\n"
+                "end\n"
             )
         else:
             content_text = "-- " + raw + "\n"
