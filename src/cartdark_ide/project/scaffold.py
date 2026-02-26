@@ -307,7 +307,7 @@ class _CartdarkOsBuilder(_BlankBuilder):
 
     def _write_input_binding(self):
         _write_text(
-            os.path.join(self.root, "input", "game.input_binding"),
+            os.path.join(self.root, "input", "input.input_binding"),
             _INPUT_BINDING_TEMPLATE.format(name=self.name),
         )
 
