@@ -144,7 +144,9 @@ def create_menu_bar(window):
         if dark_theme_action.isChecked():
             import qdarktheme
             from PySide6.QtWidgets import QApplication
+            from .theme import theme as _theme
             qdarktheme.setup_theme("dark")
+            _theme.set("dark")
 
             light_theme_action.setChecked(False)
             # 更新底部面板主题
@@ -162,7 +164,9 @@ def create_menu_bar(window):
         if light_theme_action.isChecked():
             import qdarktheme
             from PySide6.QtWidgets import QApplication
+            from .theme import theme as _theme
             qdarktheme.setup_theme("light")
+            _theme.set("light")
             dark_theme_action.setChecked(False)
             # 更新底部面板主题
             if hasattr(window, 'bottom_dock'):

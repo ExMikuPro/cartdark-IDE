@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget, QMessageBox
 from PySide6.QtCore import Qt
 
 from .welcome_page import WelcomePage
+from ..theme import theme
 from .editor_host import EditorHost, make_editor
 from ..widgets.tab_header import TabHeader
 
@@ -23,8 +24,6 @@ class Workspace(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background: #1e1e1e;")
-
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
@@ -38,15 +37,29 @@ class Workspace(QWidget):
 
         # 内容区：欢迎页 + 各编辑器页
         self._stack = QStackedWidget()
-        self._stack.setStyleSheet("background: #1e1e1e;")
+        # stack 背景由 _apply_theme 统一设置
         root_layout.addWidget(self._stack)
 
         # 欢迎页（index 0）
         self._welcome = WelcomePage()
         self._stack.addWidget(self._welcome)
 
+        # 初始化主题（_stack 已创建）
+        self._apply_theme()
+        theme.changed.connect(lambda _: self._apply_theme())
+
         # file_path → EditorHost
         self._editors: dict[str, EditorHost] = {}
+
+    # ── 主题 ──────────────────────────────────
+
+    def _apply_theme(self):
+        bg = theme.BG_BASE
+        self.setStyleSheet(f"background: {bg};")
+        self._stack.setStyleSheet(f"background: {bg};")
+        # 通知欢迎页
+        if hasattr(self, '_welcome') and hasattr(self._welcome, 'apply_theme'):
+            self._welcome.apply_theme()
 
     # ── 公开 API ──────────────────────────────
 

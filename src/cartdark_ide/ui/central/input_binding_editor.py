@@ -1,13 +1,6 @@
 """
 CartDark IDE · ui/central/input_binding_editor.py
-.input_binding 文件的可视化编辑器。
-
-三个表格区域：
-  - Pin Triggers     (Input = 下拉框，从 board/pins.json 读取)
-  - Touch Triggers   (Input = 下拉框，固定选项)
-  - Gamepad Triggers (Input = 下拉框，固定选项)
-
-每个表格列：Input | Action
+.input_binding 文件的可视化编辑器。支持亮/暗主题切换。
 """
 from __future__ import annotations
 
@@ -17,12 +10,13 @@ import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QComboBox, QScrollArea,
-    QFrame, QHeaderView, QAbstractItemView
+    QFrame, QHeaderView, QAbstractItemView, QAbstractScrollArea,
+    QStyledItemDelegate
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 
+from ..theme import theme
 
-# ── 固定选项 ──────────────────────────────────
 
 _TOUCH_INPUTS = ["TOUCH_TAP", "TOUCH_DOWN", "TOUCH_UP"]
 
@@ -33,81 +27,13 @@ _GAMEPAD_INPUTS = [
     "PAD_UP", "PAD_DOWN", "PAD_LEFT", "PAD_RIGHT",
 ]
 
-_COMBO_STYLE = """
-QComboBox {
-    background: #2d2d2d;
-    color: #cccccc;
-    border: none;
-    padding: 2px 6px;
-    font-size: 13px;
-}
-QComboBox::drop-down {
-    border: none;
-    background: #2d2d2d;
-    width: 20px;
-}
-QComboBox::down-arrow {
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #888888;
-    width: 0;
-    height: 0;
-}
-QComboBox QAbstractItemView {
-    background: #2d2d2d;
-    color: #cccccc;
-    border: 1px solid #555;
-    selection-background-color: #094771;
-    outline: none;
-}
-"""
 
-_TABLE_STYLE = """
-QTableWidget {
-    background: #252526;
-    border: 1px solid #3c3c3c;
-    color: #cccccc;
-    gridline-color: #3c3c3c;
-    font-size: 13px;
-    outline: none;
-}
-QTableWidget::item {
-    padding: 0px 8px;
-}
-QTableWidget::item:selected {
-    background: #094771;
-    color: #ffffff;
-}
-QHeaderView::section {
-    background: #2d2d2d;
-    color: #888888;
-    border: none;
-    border-bottom: 1px solid #3c3c3c;
-    border-right: 1px solid #3c3c3c;
-    padding: 4px 8px;
-    font-size: 12px;
-}
-QHeaderView::section:last {
-    border-right: none;
-}
-"""
+class _PaddedItemDelegate(QStyledItemDelegate):
+    """给 ComboBox 下拉列表每一行加高，解决 macOS 下选项过密问题"""
+    def sizeHint(self, option, index) -> QSize:
+        sh = super().sizeHint(option, index)
+        return QSize(sh.width(), max(sh.height(), 32))
 
-_BTN_STYLE = """
-QPushButton {
-    background: #3c3c3c;
-    color: #cccccc;
-    border: 1px solid #555;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: bold;
-}
-QPushButton:hover { background: #4e4e4e; }
-QPushButton:pressed { background: #2a2a2a; }
-"""
-
-
-# ── 找 board/pins.json ────────────────────────
 
 def _load_pins(file_path: str) -> list[str]:
     search = os.path.dirname(os.path.abspath(file_path))
@@ -127,8 +53,6 @@ def _load_pins(file_path: str) -> list[str]:
     return []
 
 
-# ── 单个 Trigger 表格 ─────────────────────────
-
 class _TriggerTable(QWidget):
     changed = Signal()
 
@@ -137,16 +61,13 @@ class _TriggerTable(QWidget):
         self._input_opts = input_opts
         self._blocking = False
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 12)
-        layout.setSpacing(6)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 12)
+        self._layout.setSpacing(6)
 
-        # 标题
-        lbl = QLabel(title)
-        lbl.setStyleSheet("color: #aaaaaa; font-size: 13px;")
-        layout.addWidget(lbl)
+        self._title_lbl = QLabel(title)
+        self._layout.addWidget(self._title_lbl)
 
-        # 表格：只有 Input | Action 两列
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(["Input", "Action"])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
@@ -159,30 +80,127 @@ class _TriggerTable(QWidget):
             QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
         )
         self._table.setMinimumHeight(40)
-        self._table.setMaximumHeight(16777215)  # 不限制最大高度
-        from PySide6.QtWidgets import QAbstractScrollArea
-        self._table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
-        self._table.setStyleSheet(_TABLE_STYLE)
+        self._table.setMaximumHeight(16777215)
+        self._table.setSizeAdjustPolicy(
+            QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents
+        )
         self._table.itemChanged.connect(self._on_item_changed)
-        layout.addWidget(self._table)
+        self._layout.addWidget(self._table)
 
-        # +/- 按钮
         btn_row = QHBoxLayout()
         btn_row.setSpacing(4)
-        add_btn = QPushButton("+")
-        add_btn.setFixedSize(28, 28)
-        add_btn.setStyleSheet(_BTN_STYLE)
-        add_btn.clicked.connect(self._add_row)
-        del_btn = QPushButton("−")
-        del_btn.setFixedSize(28, 28)
-        del_btn.setStyleSheet(_BTN_STYLE)
-        del_btn.clicked.connect(self._del_row)
-        btn_row.addWidget(add_btn)
-        btn_row.addWidget(del_btn)
+        self._add_btn = QPushButton("+")
+        self._add_btn.setFixedSize(28, 28)
+        self._add_btn.clicked.connect(self._add_row)
+        self._del_btn = QPushButton("−")
+        self._del_btn.setFixedSize(28, 28)
+        self._del_btn.clicked.connect(self._del_row)
+        btn_row.addWidget(self._add_btn)
+        btn_row.addWidget(self._del_btn)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
+        self._layout.addLayout(btn_row)
 
-    # ── 公开 ──────────────────────────────────
+        self.apply_theme()
+
+    def apply_theme(self):
+        t = theme
+        self._title_lbl.setStyleSheet(f"QLabel {{ color: {t.FG_SECONDARY}; font-size: 13px; }}")
+
+        self._table.setStyleSheet(f"""
+            QTableWidget {{
+                background: {t.BG_PANEL};
+                border: 1px solid {t.BORDER};
+                color: {t.FG_PRIMARY};
+                gridline-color: {t.BORDER};
+                font-size: 13px;
+                outline: none;
+            }}
+            QTableWidget::item {{
+                padding: 0px 8px;
+            }}
+            QTableWidget::item:selected {{
+                background: {t.BG_SELECTED};
+                color: {t.FG_TITLE};
+            }}
+            QHeaderView::section {{
+                background: {t.BG_HEADER};
+                color: {t.FG_SECONDARY};
+                border: none;
+                border-bottom: 1px solid {t.BORDER};
+                border-right: 1px solid {t.BORDER};
+                padding: 4px 8px;
+                font-size: 12px;
+            }}
+            QHeaderView::section:last {{ border-right: none; }}
+        """)
+
+        btn_style = f"""
+            QPushButton {{
+                background: {t.BTN_BG};
+                color: {t.FG_PRIMARY};
+                border: 1px solid {t.BORDER_INPUT};
+                border-radius: 4px;
+                font-size: 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background: {t.BTN_HOVER}; }}
+            QPushButton:pressed {{ background: {t.BTN_PRESSED}; }}
+        """
+        self._add_btn.setStyleSheet(btn_style)
+        self._del_btn.setStyleSheet(btn_style)
+
+        combo_style = self._combo_style()
+        for r in range(self._table.rowCount()):
+            combo = self._table.cellWidget(r, 0)
+            if combo:
+                combo.setStyleSheet(combo_style)
+
+    def _combo_style(self) -> str:
+        t = theme
+        return f"""
+            QComboBox {{
+                background: {t.BG_WIDGET};
+                color: {t.FG_PRIMARY};
+                border: none;
+                padding: 2px 24px 2px 8px;
+                font-size: 13px;
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: center right;
+                border: none;
+                background: transparent;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                width: 8px;
+                height: 8px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {t.ARROW};
+            }}
+            QComboBox QAbstractItemView {{
+                background: {t.BG_WIDGET};
+                color: {t.FG_PRIMARY};
+                border: 1px solid {t.BORDER_INPUT};
+                selection-background-color: {t.BG_SELECTED};
+                selection-color: {t.FG_TITLE};
+                outline: none;
+                padding: 4px 0;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 8px 14px;
+                min-height: 28px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background: {t.BG_HOVER};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background: {t.BG_SELECTED};
+                color: {t.FG_TITLE};
+            }}
+        """
 
     def load_rows(self, rows: list[dict]):
         self._blocking = True
@@ -200,12 +218,13 @@ class _TriggerTable(QWidget):
             result.append({
                 "input":  combo.currentText() if combo else "",
                 "action": item.text()          if item  else "",
-                "event":  "press",             # v1 默认 press
+                "event":  "press",
             })
         return result
 
     def update_input_opts(self, opts: list[str]):
         self._input_opts = opts
+        combo_style = self._combo_style()
         for r in range(self._table.rowCount()):
             combo = self._table.cellWidget(r, 0)
             if combo:
@@ -215,20 +234,20 @@ class _TriggerTable(QWidget):
                 combo.addItems(opts)
                 idx = combo.findText(cur)
                 combo.setCurrentIndex(max(0, idx))
+                combo.setStyleSheet(combo_style)
                 combo.blockSignals(False)
-
-    # ── 内部 ──────────────────────────────────
 
     def _append_row(self, inp: str = "", action: str = ""):
         self._blocking = True
         r = self._table.rowCount()
         self._table.insertRow(r)
-        self._table.setRowHeight(r, 28)
+        self._table.setRowHeight(r, 36)
 
         combo = QComboBox()
         combo.addItems(self._input_opts)
         combo.setEditable(False)
-        combo.setStyleSheet(_COMBO_STYLE)
+        combo.setStyleSheet(self._combo_style())
+        combo.view().setItemDelegate(_PaddedItemDelegate(combo))
         idx = combo.findText(inp)
         combo.setCurrentIndex(max(0, idx))
         combo.currentIndexChanged.connect(lambda _: self.changed.emit())
@@ -260,25 +279,13 @@ class _TriggerTable(QWidget):
             self.changed.emit()
 
     def _adjust_height(self):
-        """根据行数自动调整表格高度"""
         header_h = self._table.horizontalHeader().height()
         rows = self._table.rowCount()
-        if rows == 0:
-            row_h = 28
-        else:
-            row_h = sum(self._table.rowHeight(r) for r in range(rows))
-        total = header_h + row_h + 2  # +2 for border
-        self._table.setFixedHeight(max(40, total))
+        row_h = sum(self._table.rowHeight(r) for r in range(rows)) if rows else 36
+        self._table.setFixedHeight(max(40, header_h + row_h + 2))
 
-
-# ── 主编辑器 ──────────────────────────────────
 
 class InputBindingEditor(QWidget):
-    """
-    .input_binding 可视化编辑器。
-    接口与 EditorHost 一致：file_path / modified / save() / modified_changed
-    """
-
     modified_changed = Signal(bool)
 
     def __init__(self, file_path: str, parent=None):
@@ -289,6 +296,7 @@ class InputBindingEditor(QWidget):
 
         self._setup_ui()
         self._load_file()
+        theme.changed.connect(self._on_theme_changed)
 
     @property
     def file_path(self) -> str:
@@ -309,30 +317,26 @@ class InputBindingEditor(QWidget):
         except OSError:
             return False
 
-    # ── UI ────────────────────────────────────
-
     def _setup_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setStyleSheet("background: #1e1e1e; border: none;")
-        outer.addWidget(scroll)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(self._scroll)
 
-        content = QWidget()
-        content.setStyleSheet("background: #1e1e1e;")
-        scroll.setWidget(content)
+        self._content = QWidget()
+        self._scroll.setWidget(self._content)
 
-        layout = QVBoxLayout(content)
+        layout = QVBoxLayout(self._content)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
 
-        title = QLabel("Input Bindings")
-        title.setStyleSheet("color: #ffffff; font-size: 20px; font-weight: bold;")
-        layout.addWidget(title)
+        self._title_lbl = QLabel("Input Bindings")
+        self._title_lbl.setStyleSheet(f"color: {theme.FG_TITLE}; font-size: 20px; font-weight: bold;")
+        layout.addWidget(self._title_lbl)
 
         self._pin_table     = _TriggerTable("Pin Triggers",     self._pins)
         self._touch_table   = _TriggerTable("Touch Triggers",   _TOUCH_INPUTS)
@@ -343,8 +347,18 @@ class InputBindingEditor(QWidget):
             layout.addWidget(tbl)
 
         layout.addStretch()
+        self._apply_bg()
 
-    # ── 数据 ──────────────────────────────────
+    def _apply_bg(self):
+        t = theme
+        self._scroll.setStyleSheet(f"background: {t.BG_BASE}; border: none;")
+        self._content.setStyleSheet(f"background: {t.BG_BASE};")
+        self._title_lbl.setStyleSheet(f"QLabel {{ color: {t.FG_TITLE}; font-size: 20px; font-weight: bold; }}")
+
+    def _on_theme_changed(self, _name: str):
+        self._apply_bg()
+        for tbl in (self._pin_table, self._touch_table, self._gamepad_table):
+            tbl.apply_theme()
 
     def _load_file(self):
         try:
@@ -352,7 +366,6 @@ class InputBindingEditor(QWidget):
                 data = json.load(f)
         except Exception:
             data = {}
-
         self._pin_table.load_rows(data.get("pin_triggers", []))
         self._touch_table.load_rows(data.get("touch_triggers", []))
         self._gamepad_table.load_rows(data.get("gamepad_triggers", []))

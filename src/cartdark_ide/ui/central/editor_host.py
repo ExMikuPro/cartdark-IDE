@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPlainTextEdit, QTextEdit
 from PySide6.QtCore import Qt, QRect, QSize, Signal
+from ..theme import theme
 from PySide6.QtGui import (
     QColor, QPainter, QTextFormat, QFont, QFontMetrics,
     QTextCharFormat, QSyntaxHighlighter, QTextDocument
@@ -95,15 +96,6 @@ class _CodeEditor(QPlainTextEdit):
         font.setFixedPitch(True)
         self.setFont(font)
 
-        self.setStyleSheet("""
-            QPlainTextEdit {
-                background: #1e1e1e;
-                color: #abb2bf;
-                border: none;
-                selection-background-color: #3e4451;
-            }
-        """)
-
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.setTabStopDistance(
             QFontMetrics(self.font()).horizontalAdvance(' ') * 4
@@ -113,9 +105,32 @@ class _CodeEditor(QPlainTextEdit):
 
         self.blockCountChanged.connect(self._update_line_number_width)
         self.updateRequest.connect(self._update_line_number_area)
+        self._apply_theme_style()
         self.cursorPositionChanged.connect(self._highlight_current_line)
 
         self._update_line_number_width()
+        self._highlight_current_line()
+
+    def _apply_theme_style(self):
+        t = theme
+        if t.is_dark():
+            bg, fg, sel = "#1e1e1e", "#abb2bf", "#3e4451"
+            ln_bg, ln_fg = "#1e1e1e", "#5c6370"
+        else:
+            bg, fg, sel = "#ffffff", "#383a42", "#cce5ff"
+            ln_bg, ln_fg = "#f5f5f5", "#9d9d9d"
+        self._ln_bg = ln_bg
+        self._ln_fg = ln_fg
+        self.setStyleSheet(f"""
+            QPlainTextEdit {{
+                background: {bg};
+                color: {fg};
+                border: none;
+                selection-background-color: {sel};
+            }}
+        """)
+        # 刷新行号区
+        self._line_number_area.update()
         self._highlight_current_line()
 
     def line_number_area_width(self) -> int:
@@ -124,7 +139,7 @@ class _CodeEditor(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self._line_number_area)
-        painter.fillRect(event.rect(), QColor("#1a1a1a"))
+        painter.fillRect(event.rect(), QColor(getattr(self, "_ln_bg", "#1a1a1a")))
 
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
@@ -133,7 +148,7 @@ class _CodeEditor(QPlainTextEdit):
 
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(QColor("#4a4a4a"))
+                painter.setPen(QColor(getattr(self, "_ln_fg", "#4a4a4a")))
                 painter.drawText(
                     0, top,
                     self._line_number_area.width() - 6,
@@ -170,7 +185,7 @@ class _CodeEditor(QPlainTextEdit):
         extra = []
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            line_color = QColor("#282c34")
+            line_color = QColor(theme.BG_PANEL if not theme.is_dark() else "#282c34")
             selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.FullWidthSelection, True)
             selection.cursor = self.textCursor()
@@ -215,6 +230,8 @@ class EditorHost(QWidget):
 
         # 监听修改
         self._editor.document().modificationChanged.connect(self._on_modified)
+        # 监听主题切换
+        theme.changed.connect(self._on_theme_changed)
 
     # ── 公开 API ──────────────────────────────
 
@@ -247,6 +264,9 @@ class EditorHost(QWidget):
 
         self._editor.setPlainText(content)
         self._editor.document().setModified(False)
+
+    def _on_theme_changed(self, _name: str):
+        self._editor._apply_theme_style()
 
     def _on_modified(self, modified: bool):
         self._modified = modified
