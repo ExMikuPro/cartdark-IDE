@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, Signal
 import os
 import re
 from ..icons import get_icon
+from ...state.settings_store import SettingsStore
 
 
 class NewProjectDialog(QDialog):
@@ -23,6 +24,9 @@ class NewProjectDialog(QDialog):
         self.project_name = ""
         self.location = ""
         self.template = "blank"
+
+        # 读取上次使用的项目位置
+        self._settings = SettingsStore()
 
         # 模板信息
         self.templates = {
@@ -40,6 +44,12 @@ class NewProjectDialog(QDialog):
 
         self.setup_ui()
         self.connect_signals()
+
+        # 用上次保存的路径预填位置栏
+        last_location = self._settings.last_project_location
+        if last_location:
+            self.location_edit.setText(last_location)
+
         self.update_project_path()
         self.update_project_tree()
         self.validate_form()
@@ -377,7 +387,8 @@ class NewProjectDialog(QDialog):
 
     def on_create(self):
         """创建项目"""
-        # 构建配置
+        from ...project.scaffold import create_project, ScaffoldError
+
         config = {
             "template": self.template,
             "project_name": self.project_name,
@@ -395,11 +406,23 @@ class NewProjectDialog(QDialog):
             }
         }
 
-        # 发送信号
+        self.create_button.setEnabled(False)
+
+        try:
+            project_root = create_project(config)
+        except ScaffoldError as e:
+            QMessageBox.critical(self, "创建失败", str(e))
+            self.create_button.setEnabled(True)
+            return
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "未知错误", traceback.format_exc())
+            self.create_button.setEnabled(True)
+            return
+
+        # 保存本次选择的位置，下次打开对话框时自动填入
+        self._settings.last_project_location = self.location
+
+        config["project_root"] = project_root
         self.project_created.emit(config)
-
-        # 显示提示
-        QMessageBox.information(self, "信息", "脚手架功能尚未实现")
-
-        # 关闭对话框
         self.accept()
