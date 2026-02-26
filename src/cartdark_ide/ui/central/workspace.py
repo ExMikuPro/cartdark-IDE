@@ -74,6 +74,11 @@ class Workspace(QWidget):
         self._tab_bar.setVisible(True)
         self._stack.setCurrentWidget(editor)
 
+    def close_file(self, file_path: str):
+        """关闭指定文件的标签，不弹确认（文件已被外部删除时调用）"""
+        if file_path in self._editors:
+            self._close_tab(file_path, confirm=False)
+
     def save_current(self) -> bool:
         """保存当前激活的文件"""
         tab_id = self._tab_bar.active_id

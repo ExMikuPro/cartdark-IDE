@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
     def _create_left_panels(self):
         self.assets_dock = AssetsDock()
         self.assets_dock.file_activated.connect(self.workspace.open_file)
+        self.assets_dock.file_deleted.connect(self.workspace.close_file)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.assets_dock)
         self.changed_files_dock = ChangedFilesDock()
         self.addDockWidget(Qt.LeftDockWidgetArea, self.changed_files_dock)
