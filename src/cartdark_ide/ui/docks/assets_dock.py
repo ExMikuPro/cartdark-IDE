@@ -1,3 +1,7 @@
+"""
+CartDark IDE · ui/docks/assets_dock.py
+资源面板停靠窗口。
+"""
 from PySide6.QtWidgets import QDockWidget, QTreeView
 from PySide6.QtCore import Qt
 
@@ -17,26 +21,27 @@ class AssetsDock(QDockWidget):
             QDockWidget.DockWidgetClosable
         )
 
-        # 模型
         self._model = AssetsFsModel(self)
 
-        # 视图
         self._tree = QTreeView()
         self._tree.setHeaderHidden(True)
         self._tree.setModel(self._model)
         self._tree.setItemDelegate(AssetsDelegate(self._tree))
-        self._tree.expandAll()
 
         self.setWidget(self._tree)
 
-    # ------------------------------------------------------------------
-    # 公开 API
-    # ------------------------------------------------------------------
+    # ── 公开 API ──────────────────────────────
 
-    def load_project(self, project_data: dict):
-        """加载项目数据并刷新树"""
-        self._model.load_project(project_data)
-        self._tree.expandAll()
+    def load_project(self, project_root: str, project_name: str = ""):
+        """扫描 project_root 并填充资源树"""
+        self._model.load_from_root(project_root, project_name)
+        self._tree.expandToDepth(1)   # 默认展开一级
+
+    def close_project(self):
+        """清空资源树，回到空状态"""
+        self._model.clear()
+        self._model.setHorizontalHeaderLabels(["名称"])
+        self._model._show_placeholder()
 
     def on_theme_changed(self):
         """主题切换时刷新图标"""

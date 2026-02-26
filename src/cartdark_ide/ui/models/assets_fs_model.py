@@ -1,92 +1,148 @@
+"""
+CartDark IDE · ui/models/assets_fs_model.py
+资源面板的数据模型，直接反映项目磁盘目录结构。
+"""
+from __future__ import annotations
+
+import os
 from PySide6.QtGui import QStandardItemModel, QStandardItem
-from PySide6.QtCore import Qt
 from ..icons import get_icon
 
 
+# 文件扩展名 → 图标名映射
+_EXT_ICON: dict[str, str] = {
+    ".collection": "layer",
+    ".input_binding": "input",
+    ".lua": "code",
+    ".json": "struct",
+    ".md": "code",
+    ".gitignore": "unused",
+    ".cart": "struct",
+}
+
+# 目录名 → 图标名映射
+_DIR_ICON: dict[str, str] = {
+    "input": "input",
+    "res": "dependency",
+}
+
+
+def _icon_for_file(name: str) -> str:
+    ext = os.path.splitext(name)[1].lower()
+    # .gitignore 没有扩展名，单独处理
+    if name.startswith("."):
+        return _EXT_ICON.get(name, "unused")
+    return _EXT_ICON.get(ext, "file")
+
+
+def _icon_for_dir(name: str) -> str:
+    return _DIR_ICON.get(name.lower(), "folder")
+
+
 class AssetsItem(QStandardItem):
-    """资源树的基础节点"""
-    def __init__(self, label: str, icon_name: str):
+    """资源树节点，存储图标名以便主题切换时重建"""
+
+    def __init__(self, label: str, icon_name: str, abs_path: str = ""):
         super().__init__(label)
+        self._icon_name = icon_name
+        self._abs_path = abs_path
         self.setIcon(get_icon(icon_name))
         self.setEditable(False)
+        if abs_path:
+            self.setToolTip(abs_path)
+
+    def refresh_icon(self):
+        self.setIcon(get_icon(self._icon_name))
 
 
 class AssetsFsModel(QStandardItemModel):
     """
-    资源面板的数据模型。
+    资源面板数据模型。
 
-    树结构：
-      资源（根）
-      ├── 依赖
-      ├── 资源
-      │   └── 主文件
-      └── 输入
+    空状态（未打开项目）时显示占位提示；
+    打开项目后扫描磁盘目录填充树。
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setHorizontalHeaderLabels(["名称"])
-        self._build_default_tree()
+        self._project_root: str = ""
+        self._show_placeholder()
 
-    # ------------------------------------------------------------------
-    # 公开 API
-    # ------------------------------------------------------------------
+    # ── 公开 API ──────────────────────────────
 
-    def load_project(self, project_data: dict):
+    def load_from_root(self, project_root: str, project_name: str = ""):
         """
-        从项目数据重建树。
-
-        project_data 示例：
-        {
-            "dependencies": ["lib_a", "lib_b"],
-            "resources": ["main.cd"],
-            "inputs": ["keyboard", "gamepad"]
-        }
+        扫描 project_root 目录，重建资源树。
+        project_name 作为根节点显示名称；不传则用目录名。
         """
         self.clear()
         self.setHorizontalHeaderLabels(["名称"])
+        self._project_root = os.path.abspath(project_root)
 
-        root = self._make_root()
-
-        for name in project_data.get("dependencies", []):
-            root.child(0).appendRow(AssetsItem(name, "dependency"))
-
-        for name in project_data.get("resources", []):
-            root.child(1).appendRow(AssetsItem(name, "code"))
-
-        for name in project_data.get("inputs", []):
-            root.child(2).appendRow(AssetsItem(name, "input"))
+        display_name = project_name or os.path.basename(self._project_root)
+        root = AssetsItem(display_name, "folder", self._project_root)
+        self.appendRow(root)
+        self._populate(root, self._project_root)
 
     def reload_icons(self):
-        """切换主题后刷新所有节点图标"""
+        """主题切换后递归刷新所有节点图标"""
         self._refresh_icons(self.invisibleRootItem())
 
-    # ------------------------------------------------------------------
-    # 内部方法
-    # ------------------------------------------------------------------
+    # ── 内部方法 ──────────────────────────────
 
-    def _build_default_tree(self):
-        """构建默认示例树"""
-        root = self._make_root()
+    def _show_placeholder(self):
+        placeholder = QStandardItem("未打开项目")
+        placeholder.setEditable(False)
+        placeholder.setEnabled(False)
+        self.appendRow(placeholder)
 
-        # 资源节点下添加示例主文件
-        resources_node = root.child(1)
-        resources_node.appendRow(AssetsItem("主文件", "code"))
+    def _populate(self, parent_item: AssetsItem, dir_path: str):
+        """递归扫描目录，填充到 parent_item 下"""
+        try:
+            entries = sorted(os.scandir(dir_path), key=_sort_key)
+        except PermissionError:
+            return
 
-    def _make_root(self) -> AssetsItem:
-        """创建根节点及三个固定子节点，返回根节点"""
-        root = AssetsItem("资源", "folder")
-        root.appendRow(AssetsItem("依赖", "dependency"))
-        root.appendRow(AssetsItem("资源", "folder"))
-        root.appendRow(AssetsItem("输入", "input"))
-        self.appendRow(root)
-        return root
+        for entry in entries:
+            # 跳过隐藏文件和 IDE 内部目录（.venv 等）
+            if _should_skip(entry.name):
+                continue
+
+            if entry.is_dir(follow_symlinks=False):
+                icon = _icon_for_dir(entry.name)
+                item = AssetsItem(entry.name, icon, entry.path)
+                parent_item.appendRow(item)
+                self._populate(item, entry.path)
+            else:
+                icon = _icon_for_file(entry.name)
+                item = AssetsItem(entry.name, icon, entry.path)
+                parent_item.appendRow(item)
 
     def _refresh_icons(self, parent: QStandardItem):
-        """递归刷新节点图标（暂存 icon_name 需在 setData 中保存）"""
         for row in range(parent.rowCount()):
             item = parent.child(row)
             if isinstance(item, AssetsItem):
-                # AssetsItem 在构造时设置了图标，重新触发一次即可
-                item.setIcon(item.icon())
+                item.refresh_icon()
             self._refresh_icons(item)
+
+
+# ── 辅助函数 ──────────────────────────────────
+
+# 跳过这些目录/文件
+_SKIP_NAMES = {".venv", ".git", ".idea", "__pycache__", ".DS_Store", "Thumbs.db"}
+_SKIP_PREFIXES = (".",)   # 以 . 开头的隐藏文件/目录（.gitignore 除外）
+
+
+def _should_skip(name: str) -> bool:
+    if name in _SKIP_NAMES:
+        return True
+    # 保留 .gitignore，跳过其他隐藏文件
+    if name.startswith(".") and name != ".gitignore":
+        return True
+    return False
+
+
+def _sort_key(entry: os.DirEntry):
+    """目录排在文件前，同类按名称字母序"""
+    return (0 if entry.is_dir() else 1, entry.name.lower())
