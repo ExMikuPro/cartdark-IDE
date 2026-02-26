@@ -50,18 +50,29 @@ class Workspace(QWidget):
 
     # ── 公开 API ──────────────────────────────
 
-    def open_file(self, file_path: str):
+    def open_file(self, file_path: str, mode: str = "editor"):
         """打开文件：已打开则切换，否则新建标签"""
         if not os.path.isfile(file_path):
             return
 
         if file_path in self._editors:
-            self._tab_bar.set_active(file_path)
-            self._stack.setCurrentWidget(self._editors[file_path])
-            return
+            existing_mode = getattr(self._editors[file_path], "_open_mode", "editor")
+            if existing_mode == mode:
+                self._tab_bar.set_active(file_path)
+                self._stack.setCurrentWidget(self._editors[file_path])
+                return
+            else:
+                # mode 不同，关闭后重新以新 mode 打开
+                self._close_tab(file_path, confirm=True)
+                if file_path in self._editors:
+                    return  # 用户取消了关闭确认
 
-        # 新建编辑器（工厂函数按扩展名选择合适的编辑器）
-        editor = make_editor(file_path)
+        # 新建编辑器：mode=="text" 强制纯文本，否则走工厂函数
+        if mode == "text":
+            editor = EditorHost(file_path)
+        else:
+            editor = make_editor(file_path)
+        editor._open_mode = mode  # 记录打开模式
         editor.modified_changed.connect(
             lambda mod, fp=file_path: self._on_editor_modified(fp, mod)
         )

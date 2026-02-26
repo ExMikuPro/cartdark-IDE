@@ -262,4 +262,7 @@ def make_editor(file_path: str, parent=None) -> QWidget:
     if ext == ".input_binding":
         from .input_binding_editor import InputBindingEditor
         return InputBindingEditor(file_path, parent)
+    if ext == ".cart":
+        from .cart_editor import CartEditor
+        return CartEditor(file_path, parent)
     return EditorHost(file_path, parent)

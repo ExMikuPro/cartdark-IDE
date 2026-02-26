@@ -20,8 +20,8 @@ from ..delegates.assets_delegate import AssetsDelegate
 
 
 class AssetsDock(QDockWidget):
-    file_activated  = Signal(str)
-    file_deleted    = Signal(str)   # 文件被删除，发出绝对路径
+    file_activated  = Signal(str, str)  # (abs_path, mode)  mode: "editor" | "text"
+    file_deleted    = Signal(str)        # 文件被删除，发出绝对路径
     project_changed = Signal()
 
     def __init__(self, parent=None):
@@ -70,7 +70,7 @@ class AssetsDock(QDockWidget):
             return
         abs_path = getattr(item, "_abs_path", "")
         if abs_path and os.path.isfile(abs_path):
-            self.file_activated.emit(abs_path)
+            self.file_activated.emit(abs_path, "editor")
 
     # ── 右键菜单 ──────────────────────────────
 
@@ -148,7 +148,10 @@ class AssetsDock(QDockWidget):
         is_cart   = name.endswith(".cart")
         is_in_res = self._is_under_res(abs_path)
 
-        menu.addAction("打开", lambda: self.file_activated.emit(abs_path))
+        # 打开于... 子菜单
+        open_menu = menu.addMenu("打开于...")
+        open_menu.addAction("编辑器", lambda: self.file_activated.emit(abs_path, "editor"))
+        open_menu.addAction("文本",   lambda: self.file_activated.emit(abs_path, "text"))
         menu.addSeparator()
 
         if is_pack:
