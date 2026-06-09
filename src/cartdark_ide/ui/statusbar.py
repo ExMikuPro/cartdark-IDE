@@ -1,8 +1,3 @@
-from PySide6.QtWidgets import QStatusBar
+"""Compatibility wrapper for the moved statusbar module."""
 
-def create_status_bar(window):
-    """创建状态栏"""
-    status_bar = QStatusBar()
-    status_bar.showMessage("就绪")
-    window.setStatusBar(status_bar)
-    return status_bar
+from ..app.statusbar import *  # noqa: F401,F403

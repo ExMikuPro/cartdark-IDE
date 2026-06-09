@@ -1,4 +1,4 @@
-from src.cartdark_ide.ui.main_window import MainWindow
+from src.cartdark_ide.app.main_window import MainWindow
 from PySide6.QtWidgets import QApplication
 import sys
 
