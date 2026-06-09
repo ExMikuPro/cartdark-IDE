@@ -78,6 +78,29 @@ class _Theme(QObject):
             self.SECTION_SUB    = "#666666"
             self.NAV_GROUP      = "#555555"
 
+            self.LUA_DARCULA_COLORS = {
+                "background": "#1E1F22",
+                "foreground": "#BCBEC4",
+                "current_line": "#24262B",
+                "line_number": "#606366",
+                "current_line_number": "#A9B7C6",
+                "selection": "#214283",
+                "keyword": "#C77DFF",
+                "constant": "#CC7832",
+                "function": "#FFC66D",
+                "lifecycle": "#FFC66D",
+                "api_module": "#FFC66D",
+                "api_function": "#FFC66D",
+                "string": "#A5C261",
+                "number": "#6897BB",
+                "comment": "#7A7E85",
+                "self": "#9876AA",
+                "operator": "#BCBEC4",
+                "punctuation": "#BCBEC4",
+                "matching_bracket": "#3B514D",
+                "search_match": "#32593D",
+            }
+
         else:
             # ── 亮色 token ────────────────────
             self.BG_BASE        = "#f5f5f5"
@@ -113,6 +136,29 @@ class _Theme(QObject):
 
             self.SECTION_SUB    = "#888888"
             self.NAV_GROUP      = "#aaaaaa"
+
+            self.LUA_DARCULA_COLORS = {
+                "background": "#FFFFFF",
+                "foreground": "#2B2D30",
+                "current_line": "#F2F3F5",
+                "line_number": "#8C8C8C",
+                "current_line_number": "#2B2D30",
+                "selection": "#A6C8FF",
+                "keyword": "#871094",
+                "constant": "#000080",
+                "function": "#795E26",
+                "lifecycle": "#795E26",
+                "api_module": "#795E26",
+                "api_function": "#795E26",
+                "string": "#067D17",
+                "number": "#1750EB",
+                "comment": "#8C8C8C",
+                "self": "#9876AA",
+                "operator": "#2B2D30",
+                "punctuation": "#2B2D30",
+                "matching_bracket": "#D7E6D5",
+                "search_match": "#C9E8CA",
+            }
 
 
 # 全局单例
