@@ -1,6 +1,6 @@
 # CartDark IDE
 
-CartDark IDE 是一个面向 CartDark 平台的轻量集成开发环境，基于 PySide6/Qt6 构建。它提供项目管理、文件编辑、输入绑定配置等一站式工作流，并为 CartDark OS 的 LTDC 双层渲染模型提供原生支持。
+CartDark IDE 是一个面向 CartDark 平台的轻量集成开发环境，基于 PySide6/Qt6 构建。它提供项目管理、文件编辑和 `pack.json` 清单维护等工作流，并为 CartDark OS 的 LTDC 双层渲染模型提供原生支持。
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt6-green)
@@ -28,8 +28,14 @@ CartDark IDE 是一个面向 CartDark 平台的轻量集成开发环境，基于
 ### 可视化编辑器
 | 文件类型 | 编辑器 |
 |---|---|
-| `.cart` | 工程设置编辑器（Project / Display / Bootstrap 三栏导航） |
-| `.input_binding` | 输入绑定编辑器（Pin / Touch / Gamepad 三张触发表） |
+| `.cart` | 工程设置编辑器（Project / Platforms / Bootstrap / Display 四栏导航） |
+| `.layer` | 基础 2D 编辑器（节点列表 / 2D 画布 / 属性检查器，读写 `canvas` / `node` 结构） |
+| `.input_binding` | 旧输入绑定编辑器（仅用于打开已有文件；新 `cartdark_os` 模板不生成） |
+| `.png` / `.jpg` / `.jpeg` / `.bmp` | 图片预览编辑器（只读预览、适配窗口、100%、缩放和平移、尺寸信息） |
+
+打开 `.cart` 项目后，IDE 会读取 `bootstrap.entry`、`bootstrap.layer0`、`bootstrap.layer1`、项目元信息、`platforms.cartdark-os.app_icon` 和 `display.width` / `display.height`，并自动进入 `bootstrap.layer1` 对应的 2D 编辑器。若该 `.layer` 文件不存在，编辑器会创建空白编辑状态但不会修改 `.cart`；保存时写入 `bootstrap.layer1` 指向的路径。新建 `.layer` 的 `canvas.width` / `canvas.height` 默认来自 `.cart.display`；读取已有 `.layer` 时，2D 编辑器必须使用 `.layer.canvas.width` / `.layer.canvas.height`。
+
+图片预览编辑器用于查看项目内图片资源，包括默认 `assets/app_icon.png`。它不提供裁剪、绘图、滤镜、格式转换或覆盖保存能力；信息栏会显示文件名、项目相对路径、图片尺寸和当前缩放比例，便于确认 Launcher 图标是否为 `200x200`。
 
 ### 主题
 - 支持**暗色 / 亮色**主题切换（菜单 → 窗口 → 主题）
@@ -62,45 +68,102 @@ CartDark IDE 是一个面向 CartDark 平台的轻量集成开发环境，基于
 
 CartDark IDE 使用一套自定义的 JSON 格式管理工程文件。
 
+### `cartdark_os` 新建项目结构
+
+```text
+my_app/
+├── my_app.cart
+├── pack.json
+├── scripts/
+│   └── main.lua
+├── layers/
+│   └── default.layer
+└── assets/
+    └── app_icon.png
+```
+
+新建 Cart 项目时，IDE 会从内置模板资源复制默认 Launcher 应用图标到 `assets/app_icon.png`；该图标固定要求为 `200x200`，并由 `.cart` 的 `platforms.cartdark-os.app_icon` 默认指向。
+
 ### `.cart` — 工程描述文件
 
 ```json
 {
-  "format": "CART_PROJECT",
-  "version": 1,
-  "project": { "name": "my_app", "template": "cartdark_os", "id": "<uuid>" },
-  "display": { "width": 800, "height": 480, "format": "ARGB8888" },
+  "format": "CART_PROJECT_v1.00",
   "bootstrap": {
-    "mode": "LTDC",
-    "layers": [
-      { "id": 0, "collection": "/main/Layer0.collection", "alpha": 255, "enabled": true },
-      { "id": 1, "collection": "/main/Layer1.collection", "alpha": 255, "enabled": true }
-    ]
+    "entry": "scripts/main.lua",
+    "layer0": "",
+    "layer1": "layers/default.layer"
+  },
+  "project": {
+    "id": "0x3FA92C10B8D4E601",
+    "title": "My Cart",
+    "title_zh": "我的卡带",
+    "version": "0.1.0",
+    "developer": "Developer Name",
+    "min_fw": "0.1.0"
+  },
+  "platforms": {
+    "cartdark-os": {
+      "app_icon": "assets/app_icon.png"
+    }
+  },
+  "display": {
+    "width": 800,
+    "height": 480
   }
 }
 ```
 
-### `.input_binding` — 输入绑定文件
+`project.id` 由 IDE 在新建项目时生成，格式为 `0x` + 16 位十六进制。普通保存不会重新生成该 ID；`bootstrap` 和 `platforms.cartdark-os.app_icon` 中的路径均以项目根目录为基准。新建项目默认生成 `assets/app_icon.png` 作为 Launcher 应用图标，图标必须是 `200x200`，且 `.cart` 不记录图标尺寸。`display.width` 和 `display.height` 是正整数，2D 编辑器使用它们作为画布尺寸。
+
+### `.layer` — 图层描述文件
+
+最小合法 `.layer`：
 
 ```json
 {
-  "format": "CART_INPUT_BINDING",
-  "version": 1,
-  "name": "game",
-  "pin_triggers":     [{ "input": "PA0",       "action": "ok",    "event": "press" }],
-  "touch_triggers":   [{ "input": "TOUCH_TAP", "action": "touch", "event": "press" }],
-  "gamepad_triggers": [{ "input": "PAD_A",     "action": "jump",  "event": "press" }]
+  "canvas": {
+    "width": 800,
+    "height": 480
+  },
+  "node": []
 }
 ```
 
-### `board/pins.json` — 板级引脚列表（由模板自动生成，无需手动维护）
+新建 `.layer` 时，`canvas.width` / `canvas.height` 默认来自当前 `.cart.display`。当前基础 2D 编辑器支持 `image` node，并保存 `id`、`type`、`name`、`path` 和 `position.x` / `position.y`。
+
+### `pack.json` — XHGC_PACK v1.1 打包清单
 
 ```json
 {
-  "format": "CART_BOARD_PINS",
-  "version": 1,
-  "pins": [
-    { "id": "PA0", "label": "PA0", "tags": ["gpio", "exti"] }
+  "format": "XHGC_PACK",
+  "pack_version": 1,
+  "meta": {
+    "title": "my_app",
+    "entry": "scripts/main.lua",
+    "cart_id": "0x0000000000000001"
+  },
+  "icon": {
+    "path": "assets/app_icon.png",
+    "format": "ARGB8888",
+    "width": 200,
+    "height": 200
+  },
+  "hash": {
+    "header_crc32": true,
+    "image_crc32": false,
+    "per_chunk_crc32": false,
+    "per_file_crc32": false
+  },
+  "build": {
+    "alignment_bytes": 4096,
+    "deterministic": true,
+    "fail_on_conflict": true
+  },
+  "chunks": [
+    { "type": "MANF", "source": "inline_meta", "name": "meta/manifest.json" },
+    { "type": "LUA", "glob": "scripts/**/*.lua", "name_prefix": "", "compress": "none" },
+    { "type": "RES", "glob": "layers/**/*.layer", "name_prefix": "", "compress": "none" }
   ]
 }
 ```
@@ -143,7 +206,8 @@ cartdark-IDE/
         │   ├── workspace.py
         │   ├── editor_host.py        # 代码编辑器 + 查找栏
         │   ├── cart_editor.py        # .cart 可视化编辑器
-        │   └── input_binding_editor.py
+        │   ├── input_binding_editor.py
+        │   └── editor2d/             # 基础 2D layer 编辑器
         ├── docks/        # 资源面板、修改文件、大纲、属性、底部
         ├── dialogs/      # 新建/打开项目对话框
         ├── widgets/      # 自定义控件（TabHeader 等）

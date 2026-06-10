@@ -37,7 +37,7 @@ class NewProjectDialog(QDialog):
             },
             "cartdark_os": {
                 "name": "cartdark-os",
-                "description": "创建一个 cartdark-os 项目。",
+                "description": "创建一个最小 cartdark-os 项目骨架。",
                 "enabled": True
             }
         }
@@ -162,6 +162,7 @@ class NewProjectDialog(QDialog):
         display_layout.addWidget(self.format_combo, 2, 1)
 
         form_layout.addWidget(self.display_group)
+        self.display_group.hide()
 
         # 选项组
         options_group = QGroupBox("选项")
@@ -237,11 +238,13 @@ class NewProjectDialog(QDialog):
             self.template = template_id
             self.template_description.setText(self.templates[template_id]["description"])
 
-            # 根据模板类型控制显示选项的可见性
+            self.display_group.hide()
             if template_id == "cartdark_os":
-                self.display_group.hide()
+                self.create_readme_check.hide()
+                self.create_gitignore_check.hide()
             else:
-                self.display_group.show()
+                self.create_readme_check.show()
+                self.create_gitignore_check.show()
 
             self.update_project_tree()
 
@@ -291,22 +294,16 @@ class NewProjectDialog(QDialog):
         # 普通文件
         entries.append((False, f"{self.project_name}.cart", []))
         entries.append((False, "pack.json", []))
-        if self.template == "cartdark_os":
-            entries.append((False, "main.lua", []))
 
         # 选项文件
-        if self.create_readme_check.isChecked():
+        if self.template != "cartdark_os" and self.create_readme_check.isChecked():
             entries.append((False, "README.md", []))
-        if self.create_gitignore_check.isChecked():
+        if self.template != "cartdark_os" and self.create_gitignore_check.isChecked():
             entries.append((False, ".gitignore", []))
 
-        # cartdark-os 模板专属文件夹
-        if self.template == "cartdark_os":
-            entries.append((True, "board", ["pins.json"]))
-            entries.append((True, "input", ["game.input_binding"]))
-            entries.append((True, "main", ["Layer0.collection", "Layer1.collection"]))
-            entries.append((True, "res", []))
-            entries.append((True, "script", []))
+        entries.append((True, "assets", ["app_icon.png"]))
+        entries.append((True, "layers", ["default.layer"]))
+        entries.append((True, "scripts", ["main.lua"]))
 
         # 统一排序：文件夹在前，同类按 a-z（忽略大小写和前导点）
         entries.sort(key=lambda x: (not x[0], x[1].lstrip(".").lower()))
@@ -333,8 +330,8 @@ class NewProjectDialog(QDialog):
                     item.setIcon(0, get_icon("folder"))
                     for child_name in sorted(children, key=lambda n: n.lower()):
                         child_item = QTreeWidgetItem(item, [child_name])
-                        # .collection 文件使用图层图标
-                        if child_name.endswith(".collection"):
+                        # layer 配置文件使用图层图标
+                        if child_name.endswith((".collection", ".layer")):
                             child_item.setIcon(0, get_icon("layer"))
                         else:
                             child_item.setIcon(0, get_icon("file"))
@@ -391,18 +388,13 @@ class NewProjectDialog(QDialog):
 
     def on_create(self):
         """创建项目"""
-        from ...project.scaffold import create_project, ScaffoldError
+        from ..project.scaffold import create_project, ScaffoldError
 
         config = {
             "template": self.template,
             "project_name": self.project_name,
             "location": self.location,
             "project_path": self.project_path_preview.text(),
-            "display": {
-                "width": self.width_spin.value(),
-                "height": self.height_spin.value(),
-                "format": self.format_combo.currentText()
-            },
             "options": {
                 "create_readme": self.create_readme_check.isChecked(),
                 "create_gitignore": self.create_gitignore_check.isChecked(),

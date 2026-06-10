@@ -1,10 +1,11 @@
-# 输入绑定与板级引脚列表规范（v1）
+# 输入绑定与板级引脚列表规范（v1，deprecated）
 
 > 适用：cartdark-IDE 工程  
+> 状态：旧输入绑定文件说明，仅用于打开或维护已有 `.input_binding` 文件。新 `cartdark_os` 模板不生成 `input/`、`board/`、`game.input_binding` 或 `board/pins.json`。
 > 模式：Defold 风格的 Input Bindings（表格：Input → Action）  
 > v1 输入源：**触摸 + 引脚(GPIO) + 手柄按键（不含摇杆）**  
 > 关键要求：**引脚输入只能从下拉列表选择，不能手动输入**。  
-> 板级引脚列表由**项目模板自动提供**，用户不需要关心/维护。
+> 板级引脚列表可由用户或后续模板资产提供；当前最小 `cartdark_os` 新建模板不自动生成 `input/` 或 `board/`。
 
 ---
 
@@ -12,17 +13,17 @@
 
 | 文件                    | 位置 | 由谁提供 | 用户是否需要关心 | 职责 |
 |-----------------------|---|---|---:|---|
-| `input.input_binding` | `input/` | IDE/用户编辑 | ✅需要（通过 UI 编辑） | 输入绑定：把“触摸/引脚/手柄按键”映射为动作 action |
-| `pins.json`           | `board/` | **项目模板** | ❌不需要 | 引脚下拉列表数据源（合法引脚集合） |
+| `game.input_binding` | `input/` | 用户旧工程 / 手动提供 | 旧工程需要 | 输入绑定：把“触摸/引脚/手柄按键”映射为动作 action |
+| `pins.json`           | `board/` | 用户旧工程 / 手动提供 | 旧工程需要 | 引脚下拉列表数据源（合法引脚集合） |
 
-> 说明：用户只编辑 `input.input_binding`。`board/pins.json` 属于模板资产，IDE 只读使用，不向用户暴露编辑入口。
+> 说明：旧工程中用户可能会编辑 `game.input_binding`。`board/pins.json` 是旧输入绑定编辑器可读取的引脚数据源；新 `cartdark_os` 模板不会自动创建这些文件。
 
 ---
 
-## 1. `input/input.input_binding` 规范
+## 1. `input/game.input_binding` 规范
 
 ### 1.1 文件约束
-- 路径：`input/input.input_binding`
+- 路径：`input/game.input_binding`
 - 编码：UTF-8
 - 格式：JSON
 - 顶层必须为对象
@@ -85,7 +86,7 @@ v1 推荐输入名：
 - 路径：`board/pins.json`
 - 编码：UTF-8
 - 格式：JSON
-- **由项目模板提供**，用户无需编辑；IDE 默认只读使用。
+- 新模板不自动提供；旧工程或用户手动创建时，IDE 可只读使用。
 
 ### 2.2 顶层结构
 

@@ -7,10 +7,10 @@ from __future__ import annotations
 import json
 import os
 import random
-import uuid
+import shutil
 
 from .schema import (
-    CartProject, DisplayConfig, BootstrapConfig, BootstrapLayer,
+    create_default_cart_project, generate_project_id,
     PackJson, PackMeta, PackIcon, PackHash, PackBuild, PackChunk,
 )
 
@@ -21,6 +21,14 @@ from .schema import (
 
 class ScaffoldError(Exception):
     """脚手架生成过程中的可预期错误"""
+
+
+_DEFAULT_APP_ICON_TEMPLATE = os.path.join(
+    os.path.dirname(__file__),
+    "templates",
+    "cart",
+    "default_app_icon.png",
+)
 
 
 # ──────────────────────────────────────────────
@@ -34,8 +42,8 @@ def _generate_cart_id() -> str:
 
 
 def _generate_project_id() -> str:
-    """生成 UUID v4 字符串作为 project.id"""
-    return str(uuid.uuid4())
+    """生成随机 64-bit project.id。"""
+    return generate_project_id()
 
 
 def _write_json(path: str, data: dict) -> None:
@@ -83,40 +91,13 @@ Thumbs.db
 .cartdark/local/
 """
 
-_INPUT_BINDING_TEMPLATE = """\
-{{
-  "format": "CART_INPUT_BINDING",
-  "version": 1,
-  "name": "{name}",
-  "pin_triggers": [],
-  "touch_triggers": [],
-  "gamepad_triggers": []
-}}
+_MAIN_LUA_TEMPLATE = """\
+function init(self)
+end
+
+function update(self, dt)
+end
 """
-
-
-_PINS_JSON_TEMPLATE = """\
-{
-  "format": "CART_BOARD_PINS",
-  "version": 1,
-  "name": "Board Template Pins",
-  "pins": [
-    { "id": "PA0",  "label": "PA0",  "tags": ["gpio", "exti"] },
-    { "id": "PA1",  "label": "PA1",  "tags": ["gpio"] },
-    { "id": "PB12", "label": "PB12", "tags": ["gpio"] },
-    { "id": "PC13", "label": "PC13", "tags": ["gpio", "wkup"] }
-  ]
-}
-"""
-
-_COLLECTION_TEMPLATE = """\
-{{
-  "version": 1,
-  "name": "{name}",
-  "components": []
-}}
-"""
-
 
 # ──────────────────────────────────────────────
 # 模板构建器
@@ -128,15 +109,23 @@ class _BlankBuilder:
     def __init__(self, config: dict):
         self.name: str = config["project_name"]
         self.root: str = os.path.join(config["location"], self.name)
-        self.display: dict = config.get("display", {})
         self.options: dict = config.get("options", {})
+        self._cart_project = None
 
     def build(self) -> str:
         """执行生成，返回项目根目录路径"""
         self._check_not_exists()
-        _make_dirs(self.root)
+        _make_dirs(
+            self.root,
+            os.path.join(self.root, "assets"),
+            os.path.join(self.root, "layers"),
+            os.path.join(self.root, "scripts"),
+        )
         self._write_cart()
         self._write_pack_json()
+        self._write_icon()
+        self._write_scripts()
+        self._write_layers()
         if self.options.get("create_readme", True):
             self._write_readme()
         if self.options.get("create_gitignore", True):
@@ -148,53 +137,82 @@ class _BlankBuilder:
             raise ScaffoldError(f"目录已存在：{self.root}")
 
     def _write_cart(self):
-        project = CartProject(
-            name=self.name,
-            template="blank",
-            project_id=_generate_project_id(),
-            display=DisplayConfig(
-                width=self.display.get("width", 800),
-                height=self.display.get("height", 480),
-                format="ARGB8888",
-            ),
-        )
+        project = create_default_cart_project()
+        project.project.id = _generate_project_id()
+        self._cart_project = project
         path = os.path.join(self.root, f"{self.name}.cart")
         _write_json(path, project.to_dict())
 
     def _write_pack_json(self):
         pack = PackJson(
             meta=PackMeta(
-                title=self.name,
+                title="My Cart",
+                title_zh="我的卡带",
+                publisher="CartDark",
                 cart_id=_generate_cart_id(),
-                entry="main/main.lua",
+                entry="scripts/main.lua",
+                min_fw="0.1.0",
+                id=f"com.cartdark.{self.name}",
+                description={
+                    "default": "A CartDark application.",
+                    "zh-CN": "一个 CartDark 应用。",
+                },
+                tags=["cartdark"],
+                author={
+                    "name": "CartDark",
+                    "contact": "",
+                },
             ),
-            icon=PackIcon(),
+            icon=PackIcon(path="assets/app_icon.png"),
             hash=PackHash(),
             build=PackBuild(),
             chunks=[
                 PackChunk(
                     type="MANF",
                     source="inline_meta",
-                    name="meta/manifest.bin",
+                    name="meta/manifest.json",
                 ),
                 PackChunk(
                     type="LUA",
-                    glob="script/**/*.lua",
-                    strip_prefix="script/",
-                    name_prefix="main/",
+                    glob="scripts/**/*.lua",
+                    name_prefix="",
+                    compress="none",
                     exclude=["**/.DS_Store"],
+                    order="lex",
                 ),
                 PackChunk(
                     type="RES",
-                    glob="res/**/*",
-                    strip_prefix="res/",
-                    name_prefix="res/",
-                    exclude=["**/.DS_Store", "**/*.psd"],
+                    glob="layers/**/*.layer",
+                    name_prefix="",
+                    compress="none",
+                    exclude=["**/.DS_Store"],
+                    order="lex",
                 ),
             ],
         )
         path = os.path.join(self.root, "pack.json")
         _write_json(path, pack.to_dict())
+
+    def _write_icon(self):
+        target = os.path.join(self.root, "assets", "app_icon.png")
+        if os.path.exists(target):
+            raise ScaffoldError(f"文件已存在：{target}")
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copyfile(_DEFAULT_APP_ICON_TEMPLATE, target)
+
+    def _write_scripts(self):
+        _write_text(os.path.join(self.root, "scripts", "main.lua"), _MAIN_LUA_TEMPLATE)
+
+    def _write_layers(self):
+        project = self._cart_project or create_default_cart_project()
+        default_layer = {
+            "canvas": {
+                "width": project.display.width,
+                "height": project.display.height,
+            },
+            "node": [],
+        }
+        _write_json(os.path.join(self.root, "layers", "default.layer"), default_layer)
 
     def _write_readme(self):
         _write_text(
@@ -210,119 +228,87 @@ class _BlankBuilder:
 
 
 class _CartdarkOsBuilder(_BlankBuilder):
-    """cartdark-os 模板，继承 blank 并额外创建子目录和文件"""
-
-    def build(self) -> str:
-        self._check_not_exists()
-
-        # 创建所有目录
-        _make_dirs(
-            self.root,
-            os.path.join(self.root, "board"),
-            os.path.join(self.root, "input"),
-            os.path.join(self.root, "main"),
-            os.path.join(self.root, "res"),
-            os.path.join(self.root, "script"),
-        )
-
-        self._write_cart()
-        self._write_pack_json()
-
-        # cartdark-os 专属文件
-        self._write_input_binding()
-        self._write_pins_json()
-        self._write_collections()
-
-        if self.options.get("create_readme", True):
-            self._write_readme()
-        if self.options.get("create_gitignore", True):
-            self._write_gitignore()
-
-        return self.root
+    """cartdark-os 最小模板"""
 
     def _write_cart(self):
-        project = CartProject(
-            name=self.name,
-            template="cartdark_os",
-            project_id=_generate_project_id(),
-            display=DisplayConfig(
-                width=self.display.get("width", 800),
-                height=self.display.get("height", 480),
-                format="ARGB8888",
-            ),
-            bootstrap=BootstrapConfig(
-                mode="LTDC",
-                layers=[
-                    BootstrapLayer(id=0, collection="/main/Layer0.collection",
-                                   alpha=255, enabled=True),
-                    BootstrapLayer(id=1, collection="/main/Layer1.collection",
-                                   alpha=255, enabled=True),
-                ],
-            ),
-        )
+        project = create_default_cart_project()
+        project.project.id = _generate_project_id()
+        self._cart_project = project
         path = os.path.join(self.root, f"{self.name}.cart")
         _write_json(path, project.to_dict())
 
     def _write_pack_json(self):
-        pack = PackJson(
-            meta=PackMeta(
-                title=self.name,
-                cart_id=_generate_cart_id(),
-                entry="main/Layer0.collection",
-            ),
-            icon=PackIcon(),
-            hash=PackHash(),
-            build=PackBuild(),
-            chunks=[
-                PackChunk(
-                    type="MANF",
-                    source="inline_meta",
-                    name="meta/manifest.bin",
-                ),
-                PackChunk(
-                    type="RES",
-                    glob="main/**/*",
-                    strip_prefix="main/",
-                    name_prefix="main/",
-                    exclude=["**/.DS_Store"],
-                ),
-                PackChunk(
-                    type="RES",
-                    glob="input/**/*",
-                    strip_prefix="input/",
-                    name_prefix="input/",
-                    exclude=["**/.DS_Store"],
-                ),
-                PackChunk(
-                    type="RES",
-                    glob="res/**/*",
-                    strip_prefix="res/",
-                    name_prefix="res/",
-                    exclude=["**/.DS_Store", "**/*.psd"],
-                ),
+        pack = {
+            "format": "XHGC_PACK",
+            "pack_version": 1,
+            "meta": {
+                "title": "My Cart",
+                "title_zh": "我的卡带",
+                "publisher": "CartDark",
+                "version": "0.1.0",
+                "cart_id": _generate_cart_id(),
+                "entry": "scripts/main.lua",
+                "min_fw": "0.1.0",
+                "id": f"com.cartdark.{self.name}",
+                "description": {
+                    "default": "A CartDark application.",
+                    "zh-CN": "一个 CartDark 应用。",
+                },
+                "category": "app",
+                "tags": ["cartdark"],
+                "author": {
+                    "name": "CartDark",
+                    "contact": "",
+                },
+            },
+            "icon": {
+                "path": "assets/app_icon.png",
+                "format": "ARGB8888",
+                "width": 200,
+                "height": 200,
+                "preprocess": {
+                    "mode": "contain",
+                    "background": "#000000",
+                    "resample": "lanczos",
+                },
+            },
+            "hash": {
+                "header_crc32": True,
+                "image_crc32": False,
+                "per_chunk_crc32": False,
+                "per_file_crc32": False,
+            },
+            "build": {
+                "alignment_bytes": 4096,
+                "deterministic": True,
+                "fail_on_conflict": True,
+            },
+            "chunks": [
+                {
+                    "type": "MANF",
+                    "source": "inline_meta",
+                    "name": "meta/manifest.json",
+                },
+                {
+                    "type": "LUA",
+                    "glob": "scripts/**/*.lua",
+                    "name_prefix": "",
+                    "compress": "none",
+                    "exclude": ["**/.DS_Store"],
+                    "order": "lex",
+                },
+                {
+                    "type": "RES",
+                    "glob": "layers/**/*.layer",
+                    "name_prefix": "",
+                    "compress": "none",
+                    "exclude": ["**/.DS_Store"],
+                    "order": "lex",
+                },
             ],
-        )
+        }
         path = os.path.join(self.root, "pack.json")
-        _write_json(path, pack.to_dict())
-
-    def _write_input_binding(self):
-        _write_text(
-            os.path.join(self.root, "input", "input.input_binding"),
-            _INPUT_BINDING_TEMPLATE.format(name=self.name),
-        )
-
-    def _write_pins_json(self):
-        _write_text(
-            os.path.join(self.root, "board", "pins.json"),
-            _PINS_JSON_TEMPLATE,
-        )
-
-    def _write_collections(self):
-        for layer_name in ("Layer0", "Layer1"):
-            _write_text(
-                os.path.join(self.root, "main", f"{layer_name}.collection"),
-                _COLLECTION_TEMPLATE.format(name=layer_name),
-            )
+        _write_json(path, pack)
 
 
 # ──────────────────────────────────────────────
@@ -346,7 +332,6 @@ def create_project(config: dict) -> str:
             "template": "blank" | "cartdark_os",
             "project_name": str,
             "location": str,
-            "display": {"width": int, "height": int, "format": str},
             "options": {
                 "create_readme": bool,
                 "create_gitignore": bool,

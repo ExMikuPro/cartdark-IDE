@@ -370,26 +370,24 @@ UI_CONFIG_FIELDS = {
 }
 
 CART_KEYS = [
-    item("format", kind="field"), item("version", kind="field"),
-    item("project", kind="field"), item("name", kind="field"),
-    item("template", kind="field"), item("id", kind="field"),
-    item("display", kind="field"), item("width", kind="field"),
-    item("height", kind="field"), item("bootstrap", kind="field"),
-    item("mode", kind="field"), item("layers", kind="field"),
-    item("collection", kind="field"), item("alpha", kind="field"),
-    item("enabled", kind="field"),
+    item("format", kind="field"), item("bootstrap", kind="field"),
+    item("entry", kind="field"), item("layer0", kind="field"),
+    item("layer1", kind="field"), item("project", kind="field"),
+    item("id", kind="field"), item("title", kind="field"),
+    item("title_zh", kind="field"), item("version", kind="field"),
+    item("developer", kind="field"), item("min_fw", kind="field"),
+    item("platforms", kind="field"), item("cartdark-os", kind="field"),
+    item("app_icon", kind="field"), item("display", kind="field"),
+    item("width", kind="field"), item("height", kind="field"),
 ]
 
 LAYER_KEYS = [
-    item("format", kind="field"), item("version", kind="field"),
-    item("id", kind="field"), item("name", kind="field"),
-    item("kind", kind="field"), item("package", kind="field"),
-    item("enabled", kind="field"), item("script_control", kind="field"),
-    item("buffering", kind="field"), item("mode", kind="field"),
-    item("count", kind="field"), item("swap", kind="field"),
-    item("framebuffer", kind="field"), item("clear_color", kind="field"),
-    item("entry", kind="field"), item("collection", kind="field"),
-    item("memory", kind="field"), item("release_on_disable", kind="field"),
+    item("canvas", kind="field"), item("node", kind="field"),
+    item("id", kind="field"), item("type", kind="field"),
+    item("name", kind="field"), item("path", kind="field"),
+    item("width", kind="field"), item("height", kind="field"),
+    item("position", kind="field"), item("x", kind="field"),
+    item("y", kind="field"),
 ]
 
 INPUT_BINDING_KEYS = [

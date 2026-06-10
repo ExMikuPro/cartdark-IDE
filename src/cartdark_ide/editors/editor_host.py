@@ -838,16 +838,23 @@ class _FindBar(QWidget):
 
 
 
-def make_editor(file_path: str, parent=None) -> QWidget:
+def make_editor(file_path: str, parent=None, *, project_root: str = "") -> QWidget:
     """
     工厂函数：根据文件扩展名返回合适的编辑器。
     返回的对象保证有 file_path / modified 属性和 save() / modified_changed 信号。
     """
     ext = os.path.splitext(file_path)[1].lower()
+    from .image_viewer import is_supported_image_path
+    if is_supported_image_path(file_path):
+        from .image_viewer import ImageViewerEditor
+        return ImageViewerEditor(file_path, parent, project_root=project_root)
     if ext == ".input_binding":
         from .input_binding_editor import InputBindingEditor
         return InputBindingEditor(file_path, parent)
     if ext == ".cart":
         from .cart_editor import CartEditor
         return CartEditor(file_path, parent)
+    if ext == ".layer":
+        from .editor2d import Editor2D
+        return Editor2D(file_path, parent)
     return EditorHost(file_path, parent)

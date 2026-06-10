@@ -103,7 +103,6 @@ class AssetsDock(QDockWidget):
     def _show_dir_menu(self, abs_path: str, pos):
         menu = QMenu(self)
         is_root = (abs_path == self._project_root)
-        is_res  = (abs_path == os.path.join(self._project_root, "res"))
 
         if is_root:
             menu.addAction("新建文件…",       lambda: self._cmd_new_file(abs_path))
@@ -115,18 +114,6 @@ class AssetsDock(QDockWidget):
             menu.addSeparator()
             menu.addAction("重新加载项目", self._cmd_refresh)
             menu.addAction("关闭项目",     self._cmd_close_project)
-        elif is_res:
-            menu.addAction("新建 Lua 脚本…",      lambda: self._cmd_new_lua(abs_path))
-            menu.addAction("新建文件夹…",         lambda: self._cmd_new_folder(abs_path))
-            menu.addSeparator()
-            menu.addAction("导入资源到 res…",     lambda: self._cmd_import(abs_path))
-            menu.addAction("导入并写入打包清单…", lambda: self._cmd_import_to_pack(abs_path))
-            menu.addSeparator()
-            menu.addAction("重命名…",              lambda: self._cmd_rename(abs_path))
-            menu.addAction("删除…",                lambda: self._cmd_delete(abs_path))
-            menu.addSeparator()
-            menu.addAction("在访达中显示",         lambda: self._cmd_reveal(abs_path))
-            menu.addAction("复制路径",             lambda: self._cmd_copy_path(abs_path))
         else:
             menu.addAction("新建文件…",       lambda: self._cmd_new_file(abs_path))
             menu.addAction("新建 Lua 脚本…",  lambda: self._cmd_new_lua(abs_path))
@@ -146,7 +133,7 @@ class AssetsDock(QDockWidget):
         name      = os.path.basename(abs_path)
         is_pack   = (name == "pack.json")
         is_cart   = name.endswith(".cart")
-        is_in_res = self._is_under_res(abs_path)
+        is_pack_candidate = self._is_pack_candidate(abs_path)
 
         # 打开于... 子菜单
         open_menu = menu.addMenu("打开于...")
@@ -156,13 +143,13 @@ class AssetsDock(QDockWidget):
 
         if is_pack:
             menu.addAction("校验打包清单",          lambda: self._cmd_validate_pack())
-            menu.addAction("从 res/ 重新生成清单…", lambda: self._cmd_regen_pack())
+            menu.addAction("重新生成资源规则…",      lambda: self._cmd_regen_pack())
             menu.addAction("格式化 JSON",           lambda: self._cmd_format_pack())
             menu.addSeparator()
         elif is_cart:
             menu.addAction("校验工程文件", lambda: self._cmd_validate_cart(abs_path))
             menu.addSeparator()
-        elif is_in_res:
+        elif is_pack_candidate:
             menu.addAction("加入打包清单",     lambda: self._cmd_add_to_pack(abs_path))
             menu.addAction("从打包清单移除",   lambda: self._cmd_remove_from_pack(abs_path))
             menu.addAction("在打包清单中定位", lambda: self._cmd_locate_in_pack(abs_path))
@@ -179,7 +166,7 @@ class AssetsDock(QDockWidget):
     # ── 命令 ──────────────────────────────────
 
     def _cmd_new_lua(self, parent_dir: str):
-        """新建 Lua 脚本，并写入 pack.json 的 script chunk"""
+        """新建 Lua 脚本，并写入 pack.json 的 LUA chunk"""
         if not parent_dir:
             return
         name, ok = QInputDialog.getText(
@@ -348,7 +335,7 @@ class AssetsDock(QDockWidget):
     def _cmd_import_to_pack(self, target_dir: str):
         self._cmd_import(target_dir)
         QMessageBox.information(self, "打包清单",
-            "文件已导入到 res/。\npack.json 使用 glob 匹配，新文件将自动包含在打包范围内。")
+            "文件已导入。\n请确认 pack.json 的 chunks glob 规则是否匹配该文件。")
 
     def _cmd_reveal(self, abs_path: str):
         if sys.platform == "darwin":
@@ -389,16 +376,11 @@ class AssetsDock(QDockWidget):
 
     def _cmd_regen_pack(self):
         btn = QMessageBox.question(self, "重新生成清单",
-            "这将重新生成 pack.json 中的 RES chunk（其他字段保留）。\n确定继续？",
+            "旧版固定资源目录重建已停用。\n当前请直接编辑 pack.json 的 chunks 规则。",
             QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
         if btn != QMessageBox.Yes:
             return
-        from ..project.pack_sync import regenerate_from_res
-        if regenerate_from_res(self._project_root):
-            QMessageBox.information(self, "重新生成清单", "已完成，请检查 pack.json")
-            self._cmd_refresh()
-        else:
-            QMessageBox.critical(self, "重新生成清单", "操作失败")
+        QMessageBox.information(self, "重新生成清单", "未修改 pack.json")
 
     def _cmd_format_pack(self):
         from ..project.pack_sync import format_json
@@ -408,15 +390,10 @@ class AssetsDock(QDockWidget):
             QMessageBox.critical(self, "格式化", "操作失败")
 
     def _cmd_validate_cart(self, cart_path: str):
-        issues = []
-        pack = os.path.join(self._project_root, "pack.json")
-        if not os.path.isfile(pack):
-            issues.append("pack.json 不存在")
-        for d in ("res", "main", "script", "input"):
-            if not os.path.isdir(os.path.join(self._project_root, d)):
-                issues.append("目录缺失：" + d + "/")
+        from ..project.schema import validate_cart_file
+        issues = validate_cart_file(cart_path)
         if not issues:
-            QMessageBox.information(self, "校验工程", "工程结构完整")
+            QMessageBox.information(self, "校验工程", ".cart 文件有效")
         else:
             QMessageBox.warning(self, "校验工程",
                 "发现问题：\n\n" + "\n".join("• " + i for i in issues))
@@ -424,7 +401,7 @@ class AssetsDock(QDockWidget):
     def _cmd_add_to_pack(self, abs_path: str):
         rel = os.path.relpath(abs_path, self._project_root).replace(os.sep, "/")
         QMessageBox.information(self, "加入打包清单",
-            "pack.json 使用 glob 匹配 res/**/*，\n" + rel + " 已自动包含在打包范围内。")
+            "请确认 pack.json 中已有 chunks glob 匹配：\n" + rel)
 
     def _cmd_remove_from_pack(self, abs_path: str):
         from ..project.pack_sync import _find_pack_json, _load, _save
@@ -450,15 +427,15 @@ class AssetsDock(QDockWidget):
     def _cmd_locate_in_pack(self, abs_path: str):
         pack_path = os.path.join(self._project_root, "pack.json")
         if os.path.isfile(pack_path):
-            self.file_activated.emit(pack_path)
+            self.file_activated.emit(pack_path, "text")
 
     # ── 辅助 ──────────────────────────────────
 
-    def _is_under_res(self, abs_path: str) -> bool:
+    def _is_pack_candidate(self, abs_path: str) -> bool:
         if not self._project_root:
             return False
-        res = os.path.abspath(os.path.join(self._project_root, "res")) + os.sep
-        return os.path.abspath(abs_path).startswith(res)
+        name = os.path.basename(abs_path)
+        return name != "pack.json" and not name.endswith(".cart")
 
     def _pack_sync_rename(self, old_abs: str, new_abs: str):
         try:

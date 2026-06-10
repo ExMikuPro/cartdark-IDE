@@ -1,146 +1,205 @@
-# CART 工程文件规范（.cart）v1
+# CART 工程文件规范（.cart）v1.00
 
 > 状态：稳定
 >
-> 目标：定义 cartdark-IDE 工程文件 `*.cart` 的 JSON 结构，用于描述工程元信息、显示目标参数、以及 STM32 LTDC 两层启动配置（Layer0/Layer1）。
->
-> 关键原则：
-> 1. `.cart` 只描述“工程/IDE 语义”（工程名、显示参数、启动两层入口）。
-> 2. `.cart` 不承载打包清单规则；打包清单由项目根目录的 `pack.json` 负责。
-> 3. 字段演进遵循“只增不破坏”，老工程文件必须可被新 IDE 打开。
+> 目标：定义 XHGC IDE / CartDark IDE 使用的 Cart 项目描述文件。`.cart` 是 UTF-8 JSON 文本文件，不是二进制卡带包。
 
----
-
-## 1. 文件格式与约束
+## 1. 文件格式
 
 - 文件扩展名：`*.cart`
-- 内容编码：UTF-8
-- 内容格式：JSON（对象）
+- 内容格式：JSON Object
+- 协议版本：`CART_PROJECT_v1.00`
 - 存放位置：项目根目录
-- 推荐命名：`<projectName>.cart`（例：`aaa.cart`）
+- 路径基准：项目根目录
 
----
+## 2. 顶层结构
 
-## 2. 顶层字段（Schema 总览）
-
-顶层对象包含以下字段：
-
-- `format`：文件类型标识（推荐）
-- `version`：结构版本（必填）
-- `project`：工程元信息（必填）
-- `display`：显示目标（必填）
-- `bootstrap`：启动配置（必填，固定两层 LTDC）
-
----
-
-## 3. 字段定义（字段表）
-
-### 3.1 顶层识别与版本
-
-| 字段路径 | 类型 | 必填 | 约束/默认 | 说明 |
-|---|---|---:|---|---|
-| `format` | string | 否（推荐） | 固定 `"CART_PROJECT"` | 工具/IDE 识别标记 |
-| `version` | int | 是 | 固定 `1` | `.cart` 结构版本 |
-
----
-
-### 3.2 工程元信息 `project`
-
-| 字段路径 | 类型 | 必填 | 约束/默认 | 说明 |
-|---|---|---:|---|---|
-| `project` | object | 是 |  | 工程元信息容器 |
-| `project.name` | string | 是 |  | 工程名（IDE 展示用） |
-| `project.template` | string | 是 |  | 模板标识（例：`cartdark_os`） |
-| `project.id` | string | 是（推荐强制） | UUID v4 字符串 | 工程唯一 ID（用于缓存/索引/最近项目等稳定关联） |
-
-> 建议：新建项目时 **必须生成** `project.id`（UUID v4）。
-
----
-
-### 3.3 显示目标 `display`
-
-| 字段路径 | 类型 | 必填 | 约束/默认 | 说明 |
-|---|---|---:|---|---|
-| `display` | object | 是 |  | 显示目标参数 |
-| `display.width` | int | 是 |  | 宽（像素） |
-| `display.height` | int | 是 |  | 高（像素） |
-| `display.format` | string | 是 | 固定 `"ARGB8888"` | 像素格式（第一版统一） |
-
-> 说明：本规范 v1 中 `display.format` 固定为 `ARGB8888`，以对齐你当前渲染/资源体系。
-
----
-
-### 3.4 启动配置 `bootstrap`（固定两层 LTDC）
-
-#### 总体约束
-
-- `bootstrap.layers` **必须存在且长度固定为 2**
-- `layers[0].id` 必须为 `0`（Layer0）
-- `layers[1].id` 必须为 `1`（Layer1）
-- v1 **不包含** `blend` 字段：默认行为为“透明叠加”（即上层带 alpha 覆盖下层）
-- `alpha` 取值范围：0~255
-
-| 字段路径 | 类型 | 必填 | 约束/默认 | 说明 |
-|---|---|---:|---|---|
-| `bootstrap` | object | 是 |  | LTDC 启动配置容器 |
-| `bootstrap.mode` | string | 是 | 固定 `"ltdc_2layer"` | 表示固定两层模式 |
-| `bootstrap.layers` | array | 是 | 长度固定 2 | 两层配置数组（Layer0/Layer1） |
-| `bootstrap.layers[i].id` | int | 是 | 仅允许 0 或 1 | LTDC 层 ID |
-| `bootstrap.layers[i].enabled` | bool | 是 | 默认 `true` | 层是否启用 |
-| `bootstrap.layers[i].collection` | string | 是 |  | 该层默认加载的 collection 路径 |
-| `bootstrap.layers[i].alpha` | int | 是 | 默认 `255` | 全局透明度（0~255） |
-
----
-
-## 4. 兼容旧版 `.cart`（重要）
-
-为兼容旧工程文件（只有 `bootstrap.main_collection` 的情况），IDE 读取时必须支持以下回退规则：
-
-- 若存在 `bootstrap.layers`：**优先使用**
-- 否则若存在 `bootstrap.main_collection`：
-  - 视为 Layer0 的 `collection`
-  - Layer1 使用默认值（一般 `enabled=false` 或 `collection="/main/Layer1.collection"`，由 IDE 自行决定）
-
-> 说明：新建工程必须输出新结构（`bootstrap.layers`），旧结构仅用于兼容读取。
-
----
-
-## 5. 新建项目时的 `.cart` 推荐模板（最终）
-
-新建项目时，IDE 必须生成如下结构（示例）：
+`.cart` 顶层推荐按固定顺序包含 5 个字段：
 
 ```json
 {
-  "format": "CART_PROJECT",
-  "version": 1,
-
-  "project": {
-    "name": "aaa",
-    "template": "cartdark_os",
-    "id": "550e8400-e29b-41d4-a716-446655440000"
+  "format": "CART_PROJECT_v1.00",
+  "bootstrap": {
+    "entry": "scripts/main.lua",
+    "layer0": "",
+    "layer1": "layers/default.layer"
   },
-
+  "project": {
+    "id": "0x3FA92C10B8D4E601",
+    "title": "My Cart",
+    "title_zh": "我的卡带",
+    "version": "0.1.0",
+    "developer": "Developer Name",
+    "min_fw": "0.1.0"
+  },
+  "platforms": {
+    "cartdark-os": {
+      "app_icon": "assets/app_icon.png"
+    }
+  },
   "display": {
     "width": 800,
-    "height": 480,
-    "format": "ARGB8888"
-  },
-
-  "bootstrap": {
-    "mode": "ltdc_2layer",
-    "layers": [
-      {
-        "id": 0,
-        "enabled": true,
-        "collection": "/main/Layer0.collection",
-        "alpha": 255
-      },
-      {
-        "id": 1,
-        "enabled": true,
-        "collection": "/main/Layer1.collection",
-        "alpha": 255
-      }
-    ]
+    "height": 480
   }
 }
+```
+
+## 3. 字段定义
+
+### `format`
+
+`format` 是 `.cart` 文件协议版本字符串。当前固定为：
+
+```json
+"CART_PROJECT_v1.00"
+```
+
+IDE 打开项目时必须拒绝不支持的版本，并给出明确错误。
+
+### `bootstrap`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `bootstrap.entry` | string | 是 | 卡带入口 Lua 文件路径，应指向 `.lua` 文件 |
+| `bootstrap.layer0` | string | 是 | LTDC layer0 对应 `.layer` 文件路径；空字符串表示未绑定 |
+| `bootstrap.layer1` | string | 是 | LTDC layer1 对应 `.layer` 文件路径，必须指向 `.layer` 文件 |
+
+新建项目默认创建：
+
+```text
+scripts/main.lua
+layers/default.layer
+```
+
+默认 bootstrap：
+
+```json
+{
+  "entry": "scripts/main.lua",
+  "layer0": "",
+  "layer1": "layers/default.layer"
+}
+```
+
+### `project`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `project.id` | string | 是 | IDE 管理的卡带 ID，格式为 `0x` + 16 位十六进制 |
+| `project.title` | string | 是 | Launcher 默认显示的应用名称 |
+| `project.title_zh` | string | 是 | Launcher 中文环境显示的应用名称 |
+| `project.version` | string | 是 | 应用版本号 |
+| `project.developer` | string | 是 | 开发者名称 |
+| `project.min_fw` | string | 是 | 运行该卡带所需的最小固件版本 |
+
+`project.id` 正则规则：
+
+```regex
+^0x[0-9A-Fa-f]{16}$
+```
+
+`project.id` 必须由 IDE 在新建项目时自动生成。普通保存不得重新生成；只有“克隆项目”“另存为新卡带”等明确操作才能生成新 ID。
+
+### `platforms.cartdark-os`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `platforms.cartdark-os.app_icon` | string | 是 | Launcher 图标路径 |
+
+`app_icon` 指向的图标文件必须存在于项目根目录下，尺寸固定为 `200x200`。尺寸要求由协议规定，不写入 `.cart` 文件。
+新建 Cart 项目时，IDE 默认生成 `assets/app_icon.png` 作为 Launcher 应用图标，并将 `platforms.cartdark-os.app_icon` 写为 `assets/app_icon.png`。
+
+### `display`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `display.width` | integer | 是 | 目标屏幕宽度，单位像素，必须为正整数 |
+| `display.height` | integer | 是 | 目标屏幕高度，单位像素，必须为正整数 |
+
+新建 `.layer` 文件时，`canvas.width` / `canvas.height` 默认来自 `.cart.display.width` / `.cart.display.height`。2D 编辑器读取已有 `.layer` 时，必须读取 `.layer.canvas.width` 和 `.layer.canvas.height`；缺失 `canvas.width` 或 `canvas.height` 应直接报错。
+
+## 4. 用户可编辑规则
+
+除 `project.id` 外，其他字段都允许用户修改并保存：
+
+- `bootstrap.entry`
+- `bootstrap.layer0`
+- `bootstrap.layer1`
+- `project.title`
+- `project.title_zh`
+- `project.version`
+- `project.developer`
+- `project.min_fw`
+- `platforms.cartdark-os.app_icon`
+- `display.width`
+- `display.height`
+
+## 5. 打开校验规则
+
+IDE 打开 `.cart` 文件时必须校验：
+
+1. 文件必须是合法 JSON。
+2. 根节点必须是 JSON Object。
+3. `format` 必须存在，且必须是支持的协议版本。
+4. `bootstrap` 必须存在且为对象。
+5. `bootstrap.entry` 必须存在，是字符串，指向存在的 `.lua` 文件。
+6. `bootstrap.layer0` 必须存在，是字符串；空字符串表示未绑定，非空时应指向 `.layer` 文件。
+7. `bootstrap.layer1` 必须存在，是字符串，且应指向 `.layer` 文件。
+8. `project` 必须存在且为对象。
+9. `project.id` 必须符合 `^0x[0-9A-Fa-f]{16}$`。
+10. `project.title` 必须是字符串。
+11. `project.title_zh` 必须是字符串。
+12. `project.version` 必须是字符串。
+13. `project.developer` 必须是字符串。
+14. `project.min_fw` 必须是字符串。
+15. `platforms.cartdark-os.app_icon` 必须存在，是字符串，且必须指向项目根目录下的图标文件。
+16. `app_icon` 指向的图标必须是 `200x200`。
+17. `display` 必须存在且为对象。
+18. `display.width` 必须是正整数。
+19. `display.height` 必须是正整数。
+
+路径不存在、扩展名错误、图标尺寸错误和不支持的 `format` 都必须给出明确错误。
+
+## 6. 新建项目默认值
+
+新建项目时，IDE 从内置模板资源复制默认图标到 `assets/app_icon.png`，并默认生成如下 `.cart` 文件，其中 `project.id` 必须替换为随机 64-bit 十六进制 ID：
+
+```json
+{
+  "format": "CART_PROJECT_v1.00",
+  "bootstrap": {
+    "entry": "scripts/main.lua",
+    "layer0": "",
+    "layer1": "layers/default.layer"
+  },
+  "project": {
+    "id": "0x3FA92C10B8D4E601",
+    "title": "My Cart",
+    "title_zh": "我的卡带",
+    "version": "0.1.0",
+    "developer": "Developer Name",
+    "min_fw": "0.1.0"
+  },
+  "platforms": {
+    "cartdark-os": {
+      "app_icon": "assets/app_icon.png"
+    }
+  },
+  "display": {
+    "width": 800,
+    "height": 480
+  }
+}
+```
+
+默认 `layers/default.layer`：
+
+```json
+{
+  "canvas": {
+    "width": 800,
+    "height": 480
+  },
+  "node": []
+}
+```

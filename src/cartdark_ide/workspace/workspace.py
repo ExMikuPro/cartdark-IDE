@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from .welcome_page import WelcomePage
 from ..ui.theme import theme
 from ..editors.editor_host import EditorHost, make_editor
+from ..editors.image_viewer import is_supported_image_path
 from .tab_header import TabHeader
 
 
@@ -50,6 +51,7 @@ class Workspace(QWidget):
 
         # file_path → EditorHost
         self._editors: dict[str, EditorHost] = {}
+        self._project_root = ""
 
     # ── 主题 ──────────────────────────────────
 
@@ -63,9 +65,14 @@ class Workspace(QWidget):
 
     # ── 公开 API ──────────────────────────────
 
+    def set_project_root(self, project_root: str) -> None:
+        self._project_root = os.path.abspath(project_root) if project_root else ""
+
     def open_file(self, file_path: str, mode: str = "editor"):
         """打开文件：已打开则切换，否则新建标签"""
-        if not os.path.isfile(file_path):
+        file_path = os.path.abspath(file_path)
+        is_image_preview = mode == "editor" and is_supported_image_path(file_path)
+        if not os.path.isfile(file_path) and not is_image_preview:
             return
 
         if file_path in self._editors:
@@ -84,7 +91,7 @@ class Workspace(QWidget):
         if mode == "text":
             editor = EditorHost(file_path)
         else:
-            editor = make_editor(file_path)
+            editor = make_editor(file_path, project_root=self._project_root)
         editor._open_mode = mode  # 记录打开模式
         editor.modified_changed.connect(
             lambda mod, fp=file_path: self._on_editor_modified(fp, mod)
@@ -96,6 +103,36 @@ class Workspace(QWidget):
         title = os.path.basename(file_path)
         self._tab_bar.add_tab(file_path, title)
         self._tab_bar.setVisible(True)
+        self._stack.setCurrentWidget(editor)
+
+    def open_project_layer(self, project, project_root: str):
+        """打开当前项目 bootstrap.layer1 对应的 2D 编辑器。"""
+        from ..editors.editor2d import Editor2D
+
+        layer1 = getattr(getattr(project, "bootstrap", None), "layer1", "")
+        layer_path = ""
+        tab_id = f"cartdark-2d:{os.path.abspath(project_root)}"
+        title = "2D Editor"
+        if layer1:
+            layer_path = os.path.abspath(os.path.join(project_root, layer1))
+            tab_id = layer_path
+            title = os.path.basename(layer_path) or title
+
+        if tab_id in self._editors:
+            self._tab_bar.set_active(tab_id)
+            self._stack.setCurrentWidget(self._editors[tab_id])
+            return
+
+        editor = Editor2D(layer_path, project_root=project_root, cart_project=project)
+        editor._open_mode = "editor"
+        editor.modified_changed.connect(
+            lambda mod, fp=tab_id: self._on_editor_modified(fp, mod)
+        )
+        self._editors[tab_id] = editor
+        self._stack.addWidget(editor)
+        self._tab_bar.add_tab(tab_id, title)
+        self._tab_bar.setVisible(True)
+        self._tab_bar.set_active(tab_id)
         self._stack.setCurrentWidget(editor)
 
     def close_file(self, file_path: str):
@@ -156,6 +193,10 @@ class Workspace(QWidget):
         editor.deleteLater()
         del self._editors[file_path]
 
+        if not self._editors:
+            self._tab_bar.setVisible(False)
+            self._stack.setCurrentWidget(self._welcome)
+
     def _ask_save(self, filename: str) -> str:
         """弹出保存确认，返回 'save' / 'discard' / 'cancel'"""
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
@@ -205,8 +246,3 @@ class Workspace(QWidget):
 
         dlg.exec()
         return result["choice"]
-
-        # 没有标签了，回到欢迎页
-        if not self._editors:
-            self._tab_bar.setVisible(False)
-            self._stack.setCurrentWidget(self._welcome)

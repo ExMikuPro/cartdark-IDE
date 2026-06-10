@@ -13,8 +13,8 @@ CartDark IDE 是一个基于 PySide6/Qt6 的桌面 IDE。当前源码确认的�
 - 通过打开项目对话框选择项目目录或 `.cart` 文件，并加载项目根目录。
 - 在资源树中扫描项目文件，打开文件到中央多标签工作区。
 - 以纯文本方式编辑普通文件和 `.lua` 文件，Lua 有简易语法高亮、本地代码补全、常用语法片段、基础编辑辅助和已知 API hover tooltip，并按文本模式为 `.cart`、`.input_binding`、`.json`、`.layer` 提供 JSON 高亮与 key 补全。
-- 以可视化编辑器编辑 `.cart` 与 `.input_binding` 文件。
-- 维护部分 `pack.json` 规则，例如校验、格式化、重建 `res/**/*` chunk，以及在资源重命名/删除时同步部分路径。
+- 以可视化编辑器编辑 `.cart`；`.input_binding` 可视化编辑器仍可打开已有旧文件，但新模板不再生成该文件。
+- 维护 XHGC_PACK v1.1 `pack.json` 规则，例如校验、格式化、Lua chunk 插入，以及在资源重命名/删除时同步部分路径。
 - 切换暗色/亮色主题，并向部分自定义 UI 组件广播主题变化。
 
 未确认或未实现的能力：
@@ -89,13 +89,15 @@ sequenceDiagram
 | 快捷键 | `src/cartdark_ide/app/shortcuts.py` | 注册全局快捷键，部分调用编辑器操作和面板显示切换 | 部分实现，存在未定义目标方法 |
 | 中央工作区 | `src/cartdark_ide/workspace/workspace.py` | 管理欢迎页、标签栏、编辑器页，支持打开/保存/关闭文件 | 部分实现 |
 | 文本编辑器 | `src/cartdark_ide/editors/editor_host.py`, `src/cartdark_ide/editors/completion.py`, `src/cartdark_ide/ui/central/api_catalog.py` | `QPlainTextEdit`、行号、Lua / JSON 高亮、本地代码补全、Lua 自动缩进/Tab/成对括号/括号匹配、API hover、查找栏、保存、撤销/重做 | 已实现 |
-| `.cart` 可视化编辑器 | `src/cartdark_ide/editors/cart_editor.py` | 编辑 Project / Display / Bootstrap 页面并保存 JSON | 已实现 |
-| `.input_binding` 可视化编辑器 | `src/cartdark_ide/editors/input_binding_editor.py` | 编辑 pin/touch/gamepad triggers，读取 `board/pins.json` 作为 pin 下拉来源 | 已实现 |
+| `.cart` 可视化编辑器 | `src/cartdark_ide/editors/cart_editor.py` | 编辑 Project / Platforms / Bootstrap / Display 页面并保存 JSON | 已实现 |
+| `.layer` 基础 2D 编辑器 | `src/cartdark_ide/editors/editor2d/` | 编辑基础 2D 场景：节点列表、画布缩放/平移、image node 创建/选择/移动、属性检查器、规范 `.layer` JSON 保存 | MVP |
+| `.input_binding` 可视化编辑器 | `src/cartdark_ide/editors/input_binding_editor.py` | 旧输入绑定文件编辑器；可读取用户提供的板级 pins 数据，但新模板不生成 `input/` 或 `board/` | 旧文件支持 |
+| 图片预览编辑器 | `src/cartdark_ide/editors/image_viewer.py` | 只读预览 `.png` / `.jpg` / `.jpeg` / `.bmp`，支持适配窗口、100%、缩放、平移、尺寸和错误信息显示 | 已实现 |
 | 项目服务 | `src/cartdark_ide/services/project_service.py` | 打开/关闭项目，发出 `project_opened`、`project_closed`、`error_occurred` 信号 | 已实现 |
 | 项目 IO | `src/cartdark_ide/project/io.py` | 查找项目根目录中的 `.cart`，读取 `.cart` 到 dataclass 模型 | 已实现 |
 | 项目 schema | `src/cartdark_ide/project/schema.py` | 定义 `.cart` 和 `pack.json` v1.1 相关 dataclass 与 `to_dict()` | 已实现 |
 | 项目脚手架 | `src/cartdark_ide/project/scaffold.py` | 生成 `blank` / `cartdark_os` 项目目录、`.cart`、`pack.json`、模板文件 | 已实现 |
-| 打包清单同步 | `src/cartdark_ide/project/pack_sync.py` | 校验/格式化 `pack.json`，同步部分 `res/` 路径，重建 `res/**/*` RES chunk | 部分实现 |
+| 打包清单同步 | `src/cartdark_ide/project/pack_sync.py` | 校验/格式化 XHGC_PACK v1.1 `pack.json`，同步部分 chunk 路径，添加/移除精确 LUA chunk | 部分实现 |
 | 资源面板 | `src/cartdark_ide/assets/assets_dock.py`, `src/cartdark_ide/assets/assets_fs_model.py` | 扫描项目目录、显示资源树、右键菜单、文件增删改导入、打开文件 | 已实现 |
 | 底部面板 | `src/cartdark_ide/panels/bottom_dock.py` | 创建控制台/构建错误/搜索结果/断点标签 | 部分实现；只有控制台页有实际 widget，其他为占位 QWidget |
 | 设置持久化 | `src/cartdark_ide/core/settings_store.py`, `src/cartdark_ide/panels/bottom_dock.py` | 使用 QSettings 保存上次项目位置和底部面板主题标志 | 部分实现 |
@@ -135,7 +137,8 @@ sequenceDiagram
 - `NewProjectDialog` 支持 `blank` 和 `cartdark_os` 两个模板。
 - 项目名称只允许 `A-Z`、`a-z`、数字、下划线、短横线，且不能以 `.` 开头。
 - 上次项目位置通过 `SettingsStore.last_project_location` 保存。
-- `cartdark_os` 模板会生成 `board/`、`input/`、`main/`、`res/`、`script/` 目录，并写入 `main.lua`、`input/game.input_binding`、`board/pins.json`、`main/Layer0.collection`、`main/Layer1.collection`。
+- `cartdark_os` 模板会生成最小 Cart 工程骨架：`<project>.cart`、`pack.json`、`scripts/main.lua`、`layers/default.layer`、`assets/app_icon.png`。
+- 新建 Cart 项目时，脚手架从内置模板资源 `src/cartdark_ide/project/templates/cart/default_app_icon.png` 复制默认 Launcher 应用图标到 `assets/app_icon.png`；`.cart` 的 `platforms.cartdark-os.app_icon` 默认指向该相对路径，图标固定要求为 `200x200`。
 - `NewProjectDialog.update_project_tree()` 预览显示的清单文件名与脚手架一致，均为 `pack.json`。
 
 ### 打开项目
@@ -165,7 +168,7 @@ sequenceDiagram
 
 - 项目根目录必须存在且包含一个 `.cart` 文件。
 - 如果 `.cart` 文件不存在或超过一个，`find_cart_file()` 抛出 `ProjectLoadError`。
-- `load_cart()` 支持读取 `bootstrap.layers`，也支持旧式 `bootstrap.main_collection` 回退。
+- `load_cart()` 读取并校验 `CART_PROJECT_v1.00` 的结构字段：`bootstrap.entry`、`bootstrap.layer0`、`bootstrap.layer1`、`project` 元信息、`platforms.cartdark-os.app_icon` 和 `display.width` / `display.height`；项目打开不因 `.layer` 文件缺失失败。
 
 ### 打开文件
 
@@ -192,6 +195,8 @@ sequenceDiagram
 - `mode == "text"`：强制使用 `EditorHost`。
 - `.input_binding` 且 `mode == "editor"`：使用 `InputBindingEditor`。
 - `.cart` 且 `mode == "editor"`：使用 `CartEditor`。
+- `.layer` 且 `mode == "editor"`：使用 `Editor2D` 基础 2D 编辑器；打开项目后 `Workspace.open_project_layer()` 会自动打开 `bootstrap.layer1`。
+- `.png` / `.jpg` / `.jpeg` / `.bmp` 且 `mode == "editor"`：使用 `ImageViewerEditor` 只读图片预览编辑器；打开失败时在编辑器页内显示错误，不修改图片、`.cart` 或 `.layer`。
 - 其他文件：使用 `EditorHost`。
 
 ### 保存文件
@@ -201,7 +206,8 @@ sequenceDiagram
 - `Workspace.save_current()` 通过当前 tab id 找到编辑器，并调用编辑器 `save()`。
 - `Workspace.save_all()` 遍历所有已打开编辑器，对 `modified == True` 的编辑器调用 `save()`。
 - `EditorHost.save()` 将 `QPlainTextEdit` 全文写回原文件。
-- `CartEditor.save()` 读取现有 JSON（失败则用空对象），写入 `format`、`version`，再由页面写入 `project`、`display`、`bootstrap`。
+- `CartEditor.save()` 读取现有 `project.id`，按 `format`、`bootstrap`、`project`、`platforms`、`display` 顺序重建 `.cart` JSON；普通保存沿用现有 `project.id`，并在写盘前校验路径后缀、`display` 正整数和 200x200 图标尺寸。
+- `Editor2D.save()` 将基础 2D 场景写入 `bootstrap.layer1` 指向的 `.layer` 文件；若 `layer1` 为空则提示用户选择路径。当前写入结构为包含 `width` / `height` 的 `canvas` 对象和 `node` 数组，读取已有 `.layer` 时必须使用 `.layer.canvas` 尺寸；支持 image node 的 `id`、`type`、`name`、`path`、`position.x`、`position.y`，不会修改 `.cart` 或重新生成 `project.id`。
 - `InputBindingEditor.save()` 构建标准 `CART_INPUT_BINDING` JSON 并写回文件。
 
 未确认：
@@ -225,16 +231,15 @@ sequenceDiagram
 
 - `schema.py` 定义 `PackJson`、`PackMeta`、`PackIcon`、`PackHash`、`PackBuild`、`PackChunk`。
 - `scaffold.py` 为新项目写入 `pack.json`。
-- `pack_sync.validate()` 检查 `pack.json` 是否存在、JSON 是否可读、`icon.path` 和 `meta.entry` 指向文件是否存在、每个 chunk 的 glob 是否匹配到文件。
+- `pack_sync.validate()` 检查 `pack.json` 是否存在、JSON 是否可读、v1.1 顶层字段、`icon.path`、`meta.entry`、chunk 类型、每个 chunk 的 glob 是否匹配到文件，并检查 `meta.entry` 是否出现在 chunks 输出集合中。
 - `pack_sync.format_json()` 重新格式化 `pack.json`。
-- `pack_sync.regenerate_from_res()` 只替换 `type == "RES"` 且 glob 以 `res/` 开头的 chunk 为 `res/**/*`。
-- `on_file_renamed()` 和 `on_file_deleted()` 只在部分情况下同步 `icon.path`、`meta.entry` 和旧式 `type == "script"` chunk。
+- `pack_sync.regenerate_from_res()` 已停用旧固定资源目录重建，不再生成旧 RES 规则。
+- `on_file_renamed()` 和 `on_file_deleted()` 同步 `icon.path`、`meta.entry` 和部分 chunk 路径字段。
 
 文档与实现差异 / 待确认：
 
-- `schema.PackChunk` 注释和 `pack.json` v1.1 语义使用 `MANF` / `LUA` / `RES`，但 `pack_sync.add_script_to_pack()` 和 `remove_script_from_pack()` 仍使用旧式 `type == "script"` 与 `res` 列表。该结构是否仍被打包器接受，当前仓库无法确认。
-- `cartdark_os` 模板生成的 `pack.json` 包含根目录 `main.lua` 的 `LUA` chunk，`meta.entry` 为 `main.lua`。是否可被当前相邻 `xhgc-pack` 完整构建，当前仓库无法确认。
-- `PackIcon.path` 默认是 `res/icon.png`，但当前脚手架没有生成该文件。新项目立即通过 `pack_sync.validate()` 时可能报告 `icon.path 文件不存在`。
+- `cartdark_os` 模板生成的 `pack.json` 使用 `XHGC_PACK` / `pack_version: 1` 结构，`meta.entry` 指向包内路径 `scripts/main.lua`，并通过 `scripts/**/*.lua` 的 LUA chunk 与 `layers/**/*.layer` 的 RES chunk 收集模板文件。是否可被当前相邻 `xhgc-pack` 完整构建，当前仓库无法确认。
+- `PackIcon.path` 默认是 `assets/app_icon.png`；新建模板会复制并引用内置的 200x200 PNG。
 
 ### 构建运行
 
@@ -395,15 +400,11 @@ flowchart LR
 | `README.md` 快捷键表 | `Ctrl+W` 关闭当前标签、`Ctrl+Shift+T` 重开最近关闭文件 | `Workspace.close_current_tab()`、`Workspace.reopen_last_closed()` 未定义 |
 | `README.md` 快捷键表 | `Ctrl+B` 构建并运行、`F5` 启动调试器、`Ctrl+Shift+F` 文件中搜索 | `MainWindow.build_and_run()`、`start_debugger()`、`open_search_in_files()` 未定义 |
 | `README.md` 项目管理 | 自动恢复上次打开路径 | 源码确认保存/读取上次项目位置；未确认自动恢复上次已打开项目 |
-| `docs/CART_PROJECT v1.md` | `bootstrap.mode` 固定为 `"ltdc_2layer"` | `BootstrapConfig` 默认和脚手架当前写入 `"LTDC"` |
 | `README.md` / 功能描述 | 构建错误、搜索结果、断点面板暗示功能 | `BottomDock` 为这些标签创建占位 `QWidget()`，未找到数据流 |
 
 ## 待确认点
 
-- 是否要将 `.cart` 的 `bootstrap.mode` 统一为 `ltdc_2layer`，或更新文档接受 `LTDC`。
-- `cartdark_os` 模板的 `pack.json` 已包含根目录 `main.lua` 的 `LUA` chunk；仍需确认当前相邻 `xhgc-pack` 对根目录 Lua entry 的实现支持。
-- `pack_sync` 中旧式 `type == "script"` chunk 是否仍需保留，还是应迁移到 `LUA` chunk。
-- 新建项目是否应生成 `res/icon.png`，以满足默认 `PackIcon.path`。
+- `cartdark_os` 模板的 `pack.json` 已改为 v1.1 最小 `.layer` 清单；仍需确认当前相邻 `xhgc-pack` 对该清单结构的实现支持。
 - 菜单 QAction 是否应补齐保存/退出/撤销/重做/构建/运行的连接。
 - 是否需要实现 `Workspace.close_current_tab()` 和 `Workspace.reopen_last_closed()`。
 - 是否需要在关闭项目时关闭中央工作区所有标签。

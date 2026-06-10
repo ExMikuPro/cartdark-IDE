@@ -33,6 +33,7 @@ class ProjectService(QObject):
         super().__init__(parent)
         self._current_project: CartProject | None = None
         self._current_root: str = ""
+        self._current_cart_path: str = ""
 
     # ── 属性 ──────────────────────────────────
 
@@ -43,6 +44,10 @@ class ProjectService(QObject):
     @property
     def current_root(self) -> str:
         return self._current_root
+
+    @property
+    def current_cart_path(self) -> str:
+        return self._current_cart_path
 
     @property
     def is_open(self) -> bool:
@@ -65,6 +70,7 @@ class ProjectService(QObject):
 
         self._current_project = project
         self._current_root = os.path.abspath(project_root)
+        self._current_cart_path = os.path.abspath(cart_path)
         self.project_opened.emit(project, self._current_root)
         return True
 
@@ -80,4 +86,5 @@ class ProjectService(QObject):
         if self.is_open:
             self._current_project = None
             self._current_root = ""
+            self._current_cart_path = ""
             self.project_closed.emit()

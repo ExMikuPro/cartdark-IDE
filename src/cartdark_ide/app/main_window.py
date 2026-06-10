@@ -83,11 +83,16 @@ class MainWindow(QMainWindow):
     def _on_project_opened(self, project, project_root: str):
         """项目加载成功，更新各面板"""
         self.setWindowTitle(f"CartDark IDE — {project.name}")
+        self.workspace.close_all()
+        self.workspace.set_project_root(project_root)
         self.assets_dock.load_project(project_root, project.name)
+        self.workspace.open_project_layer(project, project_root)
 
     def _on_project_closed(self):
         """项目关闭，重置面板"""
         self.setWindowTitle("CartDark IDE")
+        self.workspace.close_all()
+        self.workspace.set_project_root("")
         self.assets_dock.close_project()
 
     def _on_project_error(self, message: str):

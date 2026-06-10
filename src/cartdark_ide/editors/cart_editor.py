@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
+from ..project.schema import CART_PROJECT_FORMAT, CartValidationError, validate_cart_data
 from ..ui.theme import theme
 
 
@@ -62,41 +63,51 @@ class _ProjectPage(QWidget):
         super().__init__(parent)
         self._scroll, self._content, layout = _make_scroll_page()
 
-        self._title     = QLabel("Project")
-        self._subtitle  = QLabel("工程基本信息")
-        self._div       = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
-        _section_header(layout, self._title, self._subtitle, self._div)
+        self._header_title = QLabel("Project")
+        self._subtitle     = QLabel("工程基本信息")
+        self._div          = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
+        _section_header(layout, self._header_title, self._subtitle, self._div)
 
-        self._name     = QLineEdit()
-        self._id       = QLineEdit(); self._id.setReadOnly(True)
-        self._template = QComboBox()
-        self._template.addItems(["blank", "cartdark_os"])
+        self._title     = QLineEdit()
+        self._title_zh  = QLineEdit()
+        self._version   = QLineEdit()
+        self._developer = QLineEdit()
+        self._min_fw    = QLineEdit()
+        self._id        = QLineEdit(); self._id.setReadOnly(True)
 
-        self._lbl_name     = QLabel("项目名称")
-        self._lbl_template = QLabel("模板")
-        self._lbl_id       = QLabel("ID")
+        self._lbl_title     = QLabel("应用名称")
+        self._lbl_title_zh  = QLabel("中文名称")
+        self._lbl_version   = QLabel("版本")
+        self._lbl_developer = QLabel("开发者")
+        self._lbl_min_fw    = QLabel("最小固件版本")
+        self._lbl_id        = QLabel("ID")
 
-        _field_row(layout, self._lbl_name,     self._name)
-        _field_row(layout, self._lbl_template, self._template)
-        _field_row(layout, self._lbl_id,       self._id)
+        _field_row(layout, self._lbl_title,     self._title)
+        _field_row(layout, self._lbl_title_zh,  self._title_zh)
+        _field_row(layout, self._lbl_version,   self._version)
+        _field_row(layout, self._lbl_developer, self._developer)
+        _field_row(layout, self._lbl_min_fw,    self._min_fw)
+        _field_row(layout, self._lbl_id,        self._id)
         layout.addStretch()
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self._scroll)
 
-        self._name.textChanged.connect(self.changed)
-        self._template.currentIndexChanged.connect(self.changed)
+        for w in (self._title, self._title_zh, self._version,
+                  self._developer, self._min_fw):
+            w.textChanged.connect(self.changed)
         self.apply_theme()
 
     def apply_theme(self):
         t = theme
         self._scroll.setStyleSheet(f"background: {t.BG_BASE}; border: none;")
         self._content.setStyleSheet(f"background: {t.BG_BASE};")
-        self._title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
+        self._header_title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
         self._subtitle.setStyleSheet(f"color: {t.SECTION_SUB}; font-size: 12px; margin-top: 2px;")
         self._div.setStyleSheet(f"background: {t.DIVIDER};")
-        for lbl in (self._lbl_name, self._lbl_template, self._lbl_id):
+        for lbl in (self._lbl_title, self._lbl_title_zh, self._lbl_version,
+                    self._lbl_developer, self._lbl_min_fw, self._lbl_id):
             lbl.setStyleSheet(f"color: {t.FG_SECONDARY}; font-size: 13px;")
         input_style = f"""
             QLineEdit {{
@@ -109,7 +120,9 @@ class _ProjectPage(QWidget):
             }}
             QLineEdit:focus {{ border-color: {t.BORDER_FOCUS}; }}
         """
-        self._name.setStyleSheet(input_style)
+        for w in (self._title, self._title_zh, self._version,
+                  self._developer, self._min_fw):
+            w.setStyleSheet(input_style)
         self._id.setStyleSheet(f"""
             QLineEdit {{
                 background: {t.BG_WIDGET_ALT};
@@ -120,7 +133,7 @@ class _ProjectPage(QWidget):
                 font-size: 13px;
             }}
         """)
-        self._template.setStyleSheet(self._combo_style())
+        return
 
     def _combo_style(self) -> str:
         t = theme
@@ -153,15 +166,116 @@ class _ProjectPage(QWidget):
 
     def load(self, data: dict):
         p = data.get("project", {})
-        self._name.setText(p.get("name", ""))
+        self._title.setText(p.get("title", p.get("name", "")))
+        self._title_zh.setText(p.get("title_zh", ""))
+        self._version.setText(p.get("version", "0.1.0"))
+        self._developer.setText(p.get("developer", ""))
+        self._min_fw.setText(p.get("min_fw", "0.1.0"))
         self._id.setText(p.get("id", ""))
-        idx = self._template.findText(p.get("template", "blank"))
-        self._template.setCurrentIndex(max(0, idx))
 
     def save_into(self, data: dict):
         data.setdefault("project", {})
-        data["project"]["name"]     = self._name.text()
-        data["project"]["template"] = self._template.currentText()
+        current_id = data["project"].get("id") or self._id.text()
+        data["project"] = {
+            "id": current_id,
+            "title": self._title.text(),
+            "title_zh": self._title_zh.text(),
+            "version": self._version.text(),
+            "developer": self._developer.text(),
+            "min_fw": self._min_fw.text(),
+        }
+
+
+class _PlatformsPage(QWidget):
+    changed = Signal()
+
+    def __init__(self, project_root: str, parent=None):
+        super().__init__(parent)
+        self._project_root = project_root
+        self._scroll, self._content, layout = _make_scroll_page()
+
+        self._header_title = QLabel("Platforms")
+        self._subtitle     = QLabel("平台相关配置")
+        self._div          = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
+        _section_header(layout, self._header_title, self._subtitle, self._div)
+
+        self._app_icon, self._app_icon_browse = self._make_path_row("Image (*.png *.jpg *.jpeg *.bmp)")
+        self._lbl_app_icon = QLabel("CartDark OS 图标")
+
+        _field_row(layout, self._lbl_app_icon, self._app_icon, self._app_icon_browse)
+        layout.addStretch()
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._scroll)
+
+        self._app_icon.textChanged.connect(self.changed)
+        self.apply_theme()
+
+    def _make_path_row(self, file_filter: str):
+        edit = QLineEdit()
+        edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn = QPushButton("…")
+        btn.setFixedSize(32, 28)
+        btn.clicked.connect(lambda: self._browse_path(edit, file_filter))
+        return edit, btn
+
+    def _browse_path(self, edit: QLineEdit, file_filter: str):
+        start = self._project_root or os.path.expanduser("~")
+        path, _ = QFileDialog.getOpenFileName(self, "选择文件", start, file_filter)
+        if path and self._project_root:
+            try:
+                path = os.path.relpath(path, self._project_root).replace(os.sep, "/")
+            except ValueError:
+                pass
+        if path:
+            edit.setText(path)
+
+    def apply_theme(self):
+        t = theme
+        self._scroll.setStyleSheet(f"background: {t.BG_BASE}; border: none;")
+        self._content.setStyleSheet(f"background: {t.BG_BASE};")
+        self._header_title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
+        self._subtitle.setStyleSheet(f"color: {t.SECTION_SUB}; font-size: 12px; margin-top: 2px;")
+        self._div.setStyleSheet(f"background: {t.DIVIDER};")
+        self._lbl_app_icon.setStyleSheet(f"color: {t.FG_SECONDARY}; font-size: 13px;")
+        input_style = f"""
+            QLineEdit {{
+                background: {t.BG_WIDGET_ALT};
+                color: {t.FG_PRIMARY};
+                border: 1px solid {t.BORDER_INPUT};
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{ border-color: {t.BORDER_FOCUS}; }}
+        """
+        self._app_icon.setStyleSheet(input_style)
+        browse_style = f"""
+            QPushButton {{
+                background: {t.BTN_BG};
+                color: {t.FG_PRIMARY};
+                border: 1px solid {t.BORDER_INPUT};
+                border-radius: 3px;
+                padding: 4px 10px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{ background: {t.BTN_HOVER}; }}
+            QPushButton:pressed {{ background: {t.BTN_PRESSED}; }}
+        """
+        self._app_icon_browse.setStyleSheet(browse_style)
+
+    def load(self, data: dict):
+        platforms = data.get("platforms", {})
+        cartdark_os = platforms.get("cartdark-os", {})
+        self._app_icon.setText(cartdark_os.get("app_icon", "assets/app_icon.png"))
+
+    def save_into(self, data: dict):
+        data["platforms"] = {
+            "cartdark-os": {
+                "app_icon": self._app_icon.text(),
+            }
+        }
 
 
 class _DisplayPage(QWidget):
@@ -171,23 +285,21 @@ class _DisplayPage(QWidget):
         super().__init__(parent)
         self._scroll, self._content, layout = _make_scroll_page()
 
-        self._title    = QLabel("Display")
-        self._subtitle = QLabel("显示参数")
-        self._div      = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
-        _section_header(layout, self._title, self._subtitle, self._div)
+        self._header_title = QLabel("Display")
+        self._subtitle     = QLabel("目标屏幕尺寸")
+        self._div          = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
+        _section_header(layout, self._header_title, self._subtitle, self._div)
 
-        self._width  = QSpinBox(); self._width.setRange(1, 9999)
-        self._height = QSpinBox(); self._height.setRange(1, 9999)
-        self._format = QComboBox()
-        self._format.addItems(["ARGB8888", "RGB888", "RGB565", "RGB555"])
+        self._width = QSpinBox()
+        self._height = QSpinBox()
+        for spin in (self._width, self._height):
+            spin.setRange(1, 100000)
+            spin.setSingleStep(1)
 
-        self._lbl_w = QLabel("水平分辨率")
-        self._lbl_h = QLabel("垂直分辨率")
-        self._lbl_f = QLabel("显示格式")
-
-        _field_row(layout, self._lbl_w, self._width)
-        _field_row(layout, self._lbl_h, self._height)
-        _field_row(layout, self._lbl_f, self._format)
+        self._lbl_width = QLabel("宽度")
+        self._lbl_height = QLabel("高度")
+        _field_row(layout, self._lbl_width, self._width)
+        _field_row(layout, self._lbl_height, self._height)
         layout.addStretch()
 
         outer = QVBoxLayout(self)
@@ -196,19 +308,18 @@ class _DisplayPage(QWidget):
 
         self._width.valueChanged.connect(self.changed)
         self._height.valueChanged.connect(self.changed)
-        self._format.currentIndexChanged.connect(self.changed)
         self.apply_theme()
 
     def apply_theme(self):
         t = theme
         self._scroll.setStyleSheet(f"background: {t.BG_BASE}; border: none;")
         self._content.setStyleSheet(f"background: {t.BG_BASE};")
-        self._title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
+        self._header_title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
         self._subtitle.setStyleSheet(f"color: {t.SECTION_SUB}; font-size: 12px; margin-top: 2px;")
         self._div.setStyleSheet(f"background: {t.DIVIDER};")
-        for lbl in (self._lbl_w, self._lbl_h, self._lbl_f):
+        for lbl in (self._lbl_width, self._lbl_height):
             lbl.setStyleSheet(f"color: {t.FG_SECONDARY}; font-size: 13px;")
-        spinbox_style = f"""
+        input_style = f"""
             QSpinBox {{
                 background: {t.BG_WIDGET_ALT};
                 color: {t.FG_PRIMARY};
@@ -216,54 +327,23 @@ class _DisplayPage(QWidget):
                 border-radius: 3px;
                 padding: 4px 8px;
                 font-size: 13px;
-                min-width: 80px;
             }}
             QSpinBox:focus {{ border-color: {t.BORDER_FOCUS}; }}
-            QSpinBox::up-button, QSpinBox::down-button {{
-                width: 16px; background: {t.BG_HOVER}; border: none;
-            }}
         """
-        self._width.setStyleSheet(spinbox_style)
-        self._height.setStyleSheet(spinbox_style)
-        self._format.setStyleSheet(f"""
-            QComboBox {{
-                background: {t.BG_WIDGET_ALT};
-                color: {t.FG_PRIMARY};
-                border: 1px solid {t.BORDER_INPUT};
-                border-radius: 3px;
-                padding: 4px 8px;
-                font-size: 13px;
-                min-width: 120px;
-            }}
-            QComboBox::drop-down {{ border: none; background: {t.BG_WIDGET_ALT}; width: 20px; }}
-            QComboBox::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid {t.ARROW};
-                width: 0; height: 0;
-            }}
-            QComboBox QAbstractItemView {{
-                background: {t.BG_WIDGET};
-                color: {t.FG_PRIMARY};
-                border: 1px solid {t.BORDER_INPUT};
-                selection-background-color: {t.BG_SELECTED};
-                outline: none;
-            }}
-        """)
+        for spin in (self._width, self._height):
+            spin.setStyleSheet(input_style)
 
     def load(self, data: dict):
-        d = data.get("display", {})
-        self._width.setValue(d.get("width", 800))
-        self._height.setValue(d.get("height", 480))
-        idx = self._format.findText(d.get("format", "ARGB8888"))
-        self._format.setCurrentIndex(max(0, idx))
+        display = data.get("display", {})
+        width = display.get("width", 800)
+        height = display.get("height", 480)
+        self._width.setValue(width if isinstance(width, int) and width > 0 else 800)
+        self._height.setValue(height if isinstance(height, int) and height > 0 else 480)
 
     def save_into(self, data: dict):
         data["display"] = {
-            "width":  self._width.value(),
+            "width": self._width.value(),
             "height": self._height.value(),
-            "format": self._format.currentText(),
         }
 
 
@@ -276,78 +356,47 @@ class _BootstrapPage(QWidget):
 
         self._scroll, self._content, layout = _make_scroll_page()
 
-        self._title    = QLabel("Bootstrap")
-        self._subtitle = QLabel("引擎启动配置（LTDC 双层）")
-        self._div      = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
-        _section_header(layout, self._title, self._subtitle, self._div)
+        self._header_title = QLabel("Bootstrap")
+        self._subtitle     = QLabel("启动入口（Lua 与 LTDC layer）")
+        self._div          = QFrame(); self._div.setFrameShape(QFrame.HLine); self._div.setFixedHeight(1)
+        _section_header(layout, self._header_title, self._subtitle, self._div)
 
-        self._lbl_mode = QLabel("显示模式")
-        self._mode = QComboBox(); self._mode.addItems(["LTDC"])
-        _field_row(layout, self._lbl_mode, self._mode)
-        layout.addSpacing(8)
+        self._entry, self._entry_browse = self._make_path_row("Lua (*.lua)")
+        self._layer0, self._layer0_browse = self._make_path_row("Layer (*.layer)")
+        self._layer1, self._layer1_browse = self._make_path_row("Layer (*.layer)")
 
-        # Layer 0
-        self._lyr0_lbl  = QLabel("Layer 0")
-        self._lyr0_div  = QFrame(); self._lyr0_div.setFrameShape(QFrame.HLine); self._lyr0_div.setFixedHeight(1)
-        layout.addWidget(self._lyr0_lbl)
-        layout.addWidget(self._lyr0_div)
-        layout.addSpacing(12)
+        self._lbl_entry = QLabel("Lua 入口")
+        self._lbl_layer0 = QLabel("Layer 0")
+        self._lbl_layer1 = QLabel("Layer 1")
 
-        self._l0_col, self._l0_browse = self._make_collection_row()
-        self._l0_alpha   = QSpinBox(); self._l0_alpha.setRange(0, 255)
-        self._l0_enabled = QCheckBox("启用")
-        self._lbl_l0c = QLabel("集合"); self._lbl_l0a = QLabel("透明度"); self._lbl_l0e = QLabel("开启")
-        _field_row(layout, self._lbl_l0c, self._l0_col, self._l0_browse)
-        _field_row(layout, self._lbl_l0a, self._l0_alpha)
-        _field_row(layout, self._lbl_l0e, self._l0_enabled)
-        layout.addSpacing(16)
-
-        # Layer 1
-        self._lyr1_lbl  = QLabel("Layer 1")
-        self._lyr1_div  = QFrame(); self._lyr1_div.setFrameShape(QFrame.HLine); self._lyr1_div.setFixedHeight(1)
-        layout.addWidget(self._lyr1_lbl)
-        layout.addWidget(self._lyr1_div)
-        layout.addSpacing(12)
-
-        self._l1_col, self._l1_browse = self._make_collection_row()
-        self._l1_alpha   = QSpinBox(); self._l1_alpha.setRange(0, 255)
-        self._l1_enabled = QCheckBox("启用")
-        self._lbl_l1c = QLabel("集合"); self._lbl_l1a = QLabel("透明度"); self._lbl_l1e = QLabel("开启")
-        _field_row(layout, self._lbl_l1c, self._l1_col, self._l1_browse)
-        _field_row(layout, self._lbl_l1a, self._l1_alpha)
-        _field_row(layout, self._lbl_l1e, self._l1_enabled)
+        _field_row(layout, self._lbl_entry, self._entry, self._entry_browse)
+        _field_row(layout, self._lbl_layer0, self._layer0, self._layer0_browse)
+        _field_row(layout, self._lbl_layer1, self._layer1, self._layer1_browse)
         layout.addStretch()
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self._scroll)
 
-        for w in (self._l0_col, self._l1_col):
+        for w in (self._entry, self._layer0, self._layer1):
             w.textChanged.connect(self.changed)
-        for w in (self._l0_alpha, self._l1_alpha):
-            w.valueChanged.connect(self.changed)
-        for w in (self._l0_enabled, self._l1_enabled):
-            w.stateChanged.connect(self.changed)
-        self._mode.currentIndexChanged.connect(self.changed)
 
         self.apply_theme()
 
-    def _make_collection_row(self):
+    def _make_path_row(self, file_filter: str):
         edit = QLineEdit()
         edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         btn = QPushButton("…")
         btn.setFixedSize(32, 28)
-        btn.clicked.connect(lambda: self._browse_collection(edit))
+        btn.clicked.connect(lambda: self._browse_path(edit, file_filter))
         return edit, btn
 
-    def _browse_collection(self, edit: QLineEdit):
+    def _browse_path(self, edit: QLineEdit, file_filter: str):
         start = self._project_root or os.path.expanduser("~")
-        path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Collection", start, "Collection (*.collection)"
-        )
+        path, _ = QFileDialog.getOpenFileName(self, "选择文件", start, file_filter)
         if path and self._project_root:
             try:
-                path = "/" + os.path.relpath(path, self._project_root).replace(os.sep, "/")
+                path = os.path.relpath(path, self._project_root).replace(os.sep, "/")
             except ValueError:
                 pass
         if path:
@@ -357,19 +406,12 @@ class _BootstrapPage(QWidget):
         t = theme
         self._scroll.setStyleSheet(f"background: {t.BG_BASE}; border: none;")
         self._content.setStyleSheet(f"background: {t.BG_BASE};")
-        self._title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
+        self._header_title.setStyleSheet(f"color: {t.FG_TITLE}; font-size: 18px; font-weight: bold;")
         self._subtitle.setStyleSheet(f"color: {t.SECTION_SUB}; font-size: 12px; margin-top: 2px;")
         self._div.setStyleSheet(f"background: {t.DIVIDER};")
 
-        for lbl in (self._lyr0_lbl, self._lyr1_lbl):
-            lbl.setStyleSheet(f"color: {t.FG_SECONDARY}; font-size: 12px; letter-spacing: 1px;")
-        for d in (self._lyr0_div, self._lyr1_div):
-            d.setStyleSheet(f"background: {t.DIVIDER_LIGHT};")
-
-        field_lbl_style = f"color: {t.FG_SECONDARY}; font-size: 13px;"
-        for lbl in (self._lbl_mode, self._lbl_l0c, self._lbl_l0a, self._lbl_l0e,
-                    self._lbl_l1c, self._lbl_l1a, self._lbl_l1e):
-            lbl.setStyleSheet(field_lbl_style)
+        for lbl in (self._lbl_entry, self._lbl_layer0, self._lbl_layer1):
+            lbl.setStyleSheet(f"color: {t.FG_SECONDARY}; font-size: 13px;")
 
         input_style = f"""
             QLineEdit {{
@@ -382,42 +424,8 @@ class _BootstrapPage(QWidget):
             }}
             QLineEdit:focus {{ border-color: {t.BORDER_FOCUS}; }}
         """
-        self._l0_col.setStyleSheet(input_style)
-        self._l1_col.setStyleSheet(input_style)
-
-        spinbox_style = f"""
-            QSpinBox {{
-                background: {t.BG_WIDGET_ALT};
-                color: {t.FG_PRIMARY};
-                border: 1px solid {t.BORDER_INPUT};
-                border-radius: 3px;
-                padding: 4px 8px;
-                font-size: 13px;
-                min-width: 80px;
-            }}
-            QSpinBox:focus {{ border-color: {t.BORDER_FOCUS}; }}
-            QSpinBox::up-button, QSpinBox::down-button {{
-                width: 16px; background: {t.BG_HOVER}; border: none;
-            }}
-        """
-        self._l0_alpha.setStyleSheet(spinbox_style)
-        self._l1_alpha.setStyleSheet(spinbox_style)
-
-        checkbox_style = f"""
-            QCheckBox {{ color: {t.FG_PRIMARY}; font-size: 13px; }}
-            QCheckBox::indicator {{
-                width: 16px; height: 16px;
-                background: {t.BG_WIDGET_ALT};
-                border: 1px solid {t.BORDER_INPUT};
-                border-radius: 3px;
-            }}
-            QCheckBox::indicator:checked {{
-                background: {t.ACCENT};
-                border-color: {t.ACCENT};
-            }}
-        """
-        self._l0_enabled.setStyleSheet(checkbox_style)
-        self._l1_enabled.setStyleSheet(checkbox_style)
+        for w in (self._entry, self._layer0, self._layer1):
+            w.setStyleSheet(input_style)
 
         browse_style = f"""
             QPushButton {{
@@ -431,60 +439,20 @@ class _BootstrapPage(QWidget):
             QPushButton:hover {{ background: {t.BTN_HOVER}; }}
             QPushButton:pressed {{ background: {t.BTN_PRESSED}; }}
         """
-        self._l0_browse.setStyleSheet(browse_style)
-        self._l1_browse.setStyleSheet(browse_style)
-
-        combo_style = f"""
-            QComboBox {{
-                background: {t.BG_WIDGET_ALT};
-                color: {t.FG_PRIMARY};
-                border: 1px solid {t.BORDER_INPUT};
-                border-radius: 3px;
-                padding: 4px 8px;
-                font-size: 13px;
-                min-width: 120px;
-            }}
-            QComboBox::drop-down {{ border: none; background: {t.BG_WIDGET_ALT}; width: 20px; }}
-            QComboBox::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid {t.ARROW};
-                width: 0; height: 0;
-            }}
-            QComboBox QAbstractItemView {{
-                background: {t.BG_WIDGET};
-                color: {t.FG_PRIMARY};
-                border: 1px solid {t.BORDER_INPUT};
-                selection-background-color: {t.BG_SELECTED};
-                outline: none;
-            }}
-        """
-        self._mode.setStyleSheet(combo_style)
+        for btn in (self._entry_browse, self._layer0_browse, self._layer1_browse):
+            btn.setStyleSheet(browse_style)
 
     def load(self, data: dict):
         bs = data.get("bootstrap", {})
-        idx = self._mode.findText(bs.get("mode", "LTDC"))
-        self._mode.setCurrentIndex(max(0, idx))
-        layers = bs.get("layers", [])
-        l0 = layers[0] if len(layers) > 0 else {}
-        l1 = layers[1] if len(layers) > 1 else {}
-        self._l0_col.setText(l0.get("collection", "/main/Layer0.collection"))
-        self._l0_alpha.setValue(l0.get("alpha", 255))
-        self._l0_enabled.setChecked(l0.get("enabled", True))
-        self._l1_col.setText(l1.get("collection", "/main/Layer1.collection"))
-        self._l1_alpha.setValue(l1.get("alpha", 255))
-        self._l1_enabled.setChecked(l1.get("enabled", True))
+        self._entry.setText(bs.get("entry", "scripts/main.lua"))
+        self._layer0.setText(bs.get("layer0", ""))
+        self._layer1.setText(bs.get("layer1", "layers/default.layer"))
 
     def save_into(self, data: dict):
         data["bootstrap"] = {
-            "mode": self._mode.currentText(),
-            "layers": [
-                {"id": 0, "collection": self._l0_col.text(),
-                 "alpha": self._l0_alpha.value(), "enabled": self._l0_enabled.isChecked()},
-                {"id": 1, "collection": self._l1_col.text(),
-                 "alpha": self._l1_alpha.value(), "enabled": self._l1_enabled.isChecked()},
-            ],
+            "entry": self._entry.text(),
+            "layer0": self._layer0.text(),
+            "layer1": self._layer1.text(),
         }
 
 
@@ -513,20 +481,25 @@ class CartEditor(QWidget):
         try:
             try:
                 with open(self._file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    current_data = json.load(f)
             except Exception:
-                data = {}
-            data["format"]  = "CART_PROJECT"
-            data["version"] = 1
-            self._project_page.save_into(data)
-            self._display_page.save_into(data)
+                current_data = {}
+            data = {"format": CART_PROJECT_FORMAT}
+            current_id = ""
+            if isinstance(current_data, dict) and isinstance(current_data.get("project"), dict):
+                current_id = current_data["project"].get("id", "")
             self._bootstrap_page.save_into(data)
+            data["project"] = {"id": current_id}
+            self._project_page.save_into(data)
+            self._platforms_page.save_into(data)
+            self._display_page.save_into(data)
+            validate_cart_data(data, self._project_root)
             with open(self._file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
                 f.write("\n")
             self._set_modified(False)
             return True
-        except OSError:
+        except (OSError, CartValidationError):
             return False
 
     def _setup_ui(self):
@@ -543,17 +516,22 @@ class CartEditor(QWidget):
         layout.addWidget(self._stack)
 
         self._project_page   = _ProjectPage()
-        self._display_page   = _DisplayPage()
+        self._platforms_page = _PlatformsPage(self._project_root)
         self._bootstrap_page = _BootstrapPage(self._project_root)
+        self._display_page = _DisplayPage()
 
-        for page in (self._project_page, self._display_page, self._bootstrap_page):
+        for page in (
+            self._project_page, self._platforms_page,
+            self._bootstrap_page, self._display_page
+        ):
             page.changed.connect(lambda: self._set_modified(True))
             self._stack.addWidget(page)
 
         self._add_nav_group("Main")
         self._add_nav_item("Project",   0)
-        self._add_nav_item("Display",   1)
+        self._add_nav_item("Platforms", 1)
         self._add_nav_item("Bootstrap", 2)
+        self._add_nav_item("Display",   3)
 
         self._nav.setCurrentRow(1)
         self._apply_nav_theme()
@@ -592,7 +570,10 @@ class CartEditor(QWidget):
 
     def _on_theme_changed(self, _name: str):
         self._apply_nav_theme()
-        for page in (self._project_page, self._display_page, self._bootstrap_page):
+        for page in (
+            self._project_page, self._platforms_page,
+            self._bootstrap_page, self._display_page
+        ):
             page.apply_theme()
 
     def _add_nav_group(self, text: str):
@@ -619,8 +600,9 @@ class CartEditor(QWidget):
         except Exception:
             data = {}
         self._project_page.load(data)
-        self._display_page.load(data)
+        self._platforms_page.load(data)
         self._bootstrap_page.load(data)
+        self._display_page.load(data)
         self._set_modified(False)
 
     def _set_modified(self, value: bool):
