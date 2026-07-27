@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+#
+# Copyright 2026 ExMikuPro
+# Licensed under the Defold License version 1.0.
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repository_root="$(cd -- "${script_dir}/.." && pwd)"
+data_root="${XDG_DATA_HOME:-${HOME}/.local/share}/cartdark-studio"
+toolchain_root="${CARTDARK_TOOLCHAIN_HOME:-${data_root}/toolchains}"
+
+if [[ -n "${CARTDARK_JAVA_HOME:-}" ]]; then
+    java_home="${CARTDARK_JAVA_HOME}"
+elif [[ -x "${toolchain_root}/jdk-25.0.3+9/bin/java" ]]; then
+    java_home="${toolchain_root}/jdk-25.0.3+9"
+elif [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    java_home="${JAVA_HOME}"
+else
+    echo "CartDark Studio requires JDK 25." >&2
+    echo "Set CARTDARK_JAVA_HOME or install it under:" >&2
+    echo "  ${toolchain_root}/jdk-25.0.3+9" >&2
+    exit 2
+fi
+
+java_version="$("${java_home}/bin/java" -version 2>&1 | head -n 1)"
+if [[ "${java_version}" != *'"25'* ]]; then
+    echo "CartDark Studio requires JDK 25, but found: ${java_version}" >&2
+    echo "Set CARTDARK_JAVA_HOME to a JDK 25 installation." >&2
+    exit 2
+fi
+
+if [[ -n "${CARTDARK_LEIN:-}" ]]; then
+    lein_command="${CARTDARK_LEIN}"
+elif command -v lein >/dev/null 2>&1; then
+    lein_command="$(command -v lein)"
+elif [[ -x "${toolchain_root}/lein" ]]; then
+    lein_command="${toolchain_root}/lein"
+else
+    echo "Leiningen was not found." >&2
+    echo "Install lein, set CARTDARK_LEIN, or place it at:" >&2
+    echo "  ${toolchain_root}/lein" >&2
+    exit 2
+fi
+
+dynamo_home="${CARTDARK_DYNAMO_HOME:-${repository_root}/tmp/dynamo_home}"
+if [[ ! -d "${dynamo_home}/ext" ]]; then
+    echo "Defold Editor dependencies are not initialized: ${dynamo_home}" >&2
+    echo "Run the Editor-only initialization documented in README.md first." >&2
+    exit 2
+fi
+
+export JAVA_HOME="${java_home}"
+export LEIN_HOME="${LEIN_HOME:-${toolchain_root}/lein-home}"
+export DEFOLD_HOME="${repository_root}"
+export DYNAMO_HOME="${dynamo_home}"
+export DM_JAVA_RUNTIME_FLAGS="--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
+export LD_LIBRARY_PATH="${dynamo_home}/lib/x86_64-linux:${dynamo_home}/ext/lib/x86_64-linux${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export PATH="${dynamo_home}/bin/x86_64-linux:${dynamo_home}/bin:${dynamo_home}/ext/bin:${dynamo_home}/ext/bin/x86_64-linux:${JAVA_HOME}/bin:${PATH}"
+
+cd "${repository_root}/editor"
+if [[ "${1:-}" == "--test" ]]; then
+    shift
+    exec "${lein_command}" test-cartdark "$@"
+fi
+
+exec "${lein_command}" run-cartdark "$@"

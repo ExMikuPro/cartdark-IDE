@@ -64,9 +64,9 @@ Python 仅用于保留的上游依赖准备脚本；完成初始化后，CartDar
 Linux 和 macOS：
 
 ```bash
-cd editor
-lein test-cartdark
-lein run-cartdark
+./scripts/run-cartdark
+./scripts/run-cartdark /absolute/path/to/project/pack.json
+./scripts/run-cartdark --test
 ```
 
 Windows PowerShell：
@@ -84,6 +84,19 @@ cd editor
 lein run-cartdark /absolute/path/to/project
 lein run-cartdark /absolute/path/to/project/pack.json
 ```
+
+仓库启动脚本不会引用系统 `/tmp/cartdark-*`。它依次使用：
+
+1. `CARTDARK_JAVA_HOME` 与 `CARTDARK_LEIN`。
+2. 系统 `JAVA_HOME` 和 `PATH` 中的 Leiningen。
+3. `~/.local/share/cartdark-studio/toolchains/` 中的持久工具链。
+
+Defold Editor 的预构建依赖默认位于仓库自己的、被 Git 忽略的
+`tmp/dynamo_home`；也可通过 `CARTDARK_DYNAMO_HOME` 指向其他持久目录。
+
+IntelliJ IDEA 会自动发现 `.run/CartDark Studio.run.xml`。打开仓库后，在顶部
+运行配置中选择 **CartDark Studio** 并点击运行即可，不需要为运行配置填写
+任何 `/tmp` 路径。Shell Script 插件必须处于启用状态。
 
 ## 项目与构建工具
 
