@@ -1,0 +1,17 @@
+CartDark Studio
+Copyright 2026 ExMikuPro
+
+CartDark Studio is based on and modifies source code from the Defold Editor:
+
+  Upstream project: Defold
+  Repository: https://github.com/defold/defold
+  Branch: dev
+  Commit: 39c1b854e2678417b682fefc8affcfd0245cb017
+  Modifications: ExMikuPro
+
+The original Defold copyright notices, Defold License, NOTICE, and third-party
+license materials are retained in this source distribution. Defold and the
+Defold logo are trademarks of their respective owners.
+
+CartDark Studio is an independent product. It is not an official Defold product
+and is not endorsed by or affiliated with the Defold Foundation.
