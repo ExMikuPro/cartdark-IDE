@@ -91,8 +91,9 @@ lein run-cartdark /absolute/path/to/project/pack.json
 2. 系统 `JAVA_HOME` 和 `PATH` 中的 Leiningen。
 3. `~/.local/share/cartdark-studio/toolchains/` 中的持久工具链。
 
-Defold Editor 的预构建依赖默认位于仓库自己的、被 Git 忽略的
-`tmp/dynamo_home`；也可通过 `CARTDARK_DYNAMO_HOME` 指向其他持久目录。
+Defold Editor 的预构建依赖默认位于持久目录
+`~/.local/share/cartdark-studio/dynamo-home/`；也可通过
+`CARTDARK_DYNAMO_HOME` 指向其他目录。启动流程不依赖仓库或系统临时目录。
 
 IntelliJ IDEA 会自动发现 `.run/CartDark Studio.run.xml`。打开仓库后，在顶部
 运行配置中选择 **CartDark Studio** 并点击运行即可，不需要为运行配置填写

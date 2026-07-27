@@ -43,7 +43,7 @@ else
     exit 2
 fi
 
-dynamo_home="${CARTDARK_DYNAMO_HOME:-${repository_root}/tmp/dynamo_home}"
+dynamo_home="${CARTDARK_DYNAMO_HOME:-${data_root}/dynamo-home}"
 if [[ ! -d "${dynamo_home}/ext" ]]; then
     echo "Defold Editor dependencies are not initialized: ${dynamo_home}" >&2
     echo "Run the Editor-only initialization documented in README.md first." >&2
