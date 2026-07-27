@@ -13,10 +13,13 @@
         <Menu text="File">
           <items>
             <MenuItem fx:id="open_project_menu" text="Open Project…" />
+            <MenuItem fx:id="open_pack_menu" text="Open pack.json…" />
             <SeparatorMenuItem />
             <MenuItem fx:id="save_menu" text="Save" accelerator="Shortcut+S" />
             <MenuItem fx:id="save_all_menu" text="Save All" accelerator="Shortcut+Shift+S" />
             <MenuItem fx:id="reopen_menu" text="Reopen Closed Tab" accelerator="Shortcut+Shift+T" />
+            <SeparatorMenuItem />
+            <MenuItem fx:id="settings_menu" text="Settings…" />
           </items>
         </Menu>
         <Menu text="Edit" />
@@ -82,6 +85,7 @@
       <Label fx:id="status_label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
       <Label fx:id="project_status_label" text="No project" />
       <ProgressBar fx:id="progress_bar" visible="false" prefWidth="140.0" />
+      <Button fx:id="cancel_build_button" text="Cancel" visible="false" />
     </HBox>
   </VBox>
   <StackPane fx:id="global_overlay" visible="false" styleClass="global-overlay">

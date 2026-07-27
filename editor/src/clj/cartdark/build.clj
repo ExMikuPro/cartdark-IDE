@@ -68,11 +68,14 @@
 (defn parse-log-line [line]
   (try
     (let [value (json/read-str line :key-fn keyword)]
-      (if (map? value)
+      (if (and (map? value)
+               (some #(contains? value %) [:severity :message :file :line :column]))
         {:kind :json
          :value (merge (zipmap build-error-fields (repeat nil))
                        (select-keys value build-error-fields))}
-        {:kind :console :text line}))
+        (if (map? value)
+          {:kind :event :value value :text line}
+          {:kind :console :text line})))
     (catch Exception _
       {:kind :console :text line})))
 
@@ -97,8 +100,10 @@
          :directory (.getParent tool)
          :on-line (fn [stream line]
                     (let [parsed (parse-log-line line)]
-                      (if (= :json (:kind parsed))
-                        (on-error (:value parsed))
+                      (case (:kind parsed)
+                        :json (on-error (:value parsed))
+                        :event (on-console {:stream stream :text (:text parsed)
+                                            :event (:value parsed)})
                         (on-console {:stream stream :text (:text parsed)}))))
          :on-exit (fn [exit-code]
                     (on-complete {:exit-code exit-code

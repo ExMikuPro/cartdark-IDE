@@ -11,10 +11,11 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+;;
+;; Modified for CartDark Studio by ExMikuPro.
 
 (ns editor.error-reporting
   (:require
-   [editor.analytics :as analytics]
    [editor.sentry :as sentry]
    [editor.system :as system]
    [service.log :as log])
@@ -132,7 +133,9 @@
          (do (if-let [data (ex-data exception)]
                (log/error :exception exception :ex-data data)
                (log/error :exception exception))
-             (analytics/track-exception! exception)
+             ;; CartDark does not initialize Defold Analytics.
+             (when-let [track-exception! (resolve 'editor.analytics/track-exception!)]
+               (track-exception! exception))
              (let [sentry-id-promise (sentry-reporter exception thread)]
                (exception-notifier ex-map sentry-id-promise)
                nil))))

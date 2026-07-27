@@ -11,11 +11,12 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+;;
+;; Modified for CartDark Studio by ExMikuPro.
 
 (ns editor.handler
   (:require [clojure.spec.alpha :as s]
             [dynamo.graph :as g]
-            [editor.analytics :as analytics]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
             [editor.localization :as localization]
@@ -394,7 +395,10 @@
       (invoke-fnk handler fsym ctx default))))
 
 (defn run [[handler command-context]]
-  (analytics/track-screen! (ctx->screen-name command-context))
+  ;; Analytics is deliberately not loaded by the CartDark startup path. The
+  ;; original Defold entry point may still install it before invoking handlers.
+  (when-let [track-screen! (resolve 'editor.analytics/track-screen!)]
+    (track-screen! (ctx->screen-name command-context)))
   (let [result (invoke-fnk handler :run command-context ::no-run ::no-run)]
     (when-not (= ::no-run result)
       (doseq [[listener callback-fn] (get-in @state-atom [:listeners (:command handler)])]

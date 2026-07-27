@@ -11,6 +11,8 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+;;
+;; Modified for CartDark Studio by ExMikuPro.
 
 (ns editor.markdown
   (:require [cljfx.api :as fx]
@@ -32,7 +34,6 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.defold-project :as project]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.resource :as resource]
@@ -119,7 +120,8 @@
           (if-let [resource (when project
                               (g/with-auto-evaluation-context evaluation-context
                                 (let [basis (:basis evaluation-context)
-                                      workspace (project/workspace project evaluation-context)]
+                                      workspace ((requiring-resolve 'editor.defold-project/workspace)
+                                                 project evaluation-context)]
                                   (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                                     (workspace/find-resource basis workspace proj-path)))))]
             (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)

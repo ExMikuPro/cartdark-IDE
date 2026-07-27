@@ -7,6 +7,7 @@
             [cartdark.lua :as cartdark-lua]
             [cartdark.preferences :as preferences]
             [cartdark.project :as project]
+            [cartdark.project-tree :as project-tree]
             [cartdark.simulator :as simulator]
             [cartdark.text-document :as document]
             [cartdark.text-resource :as text-resource]
@@ -18,17 +19,18 @@
             [editor.code.lang.json :as json-language]
             [editor.code.view :as code-view]
             [editor.prefs :as editor-prefs])
-  (:import [java.nio.file Files LinkOption Path]
+  (:import [java.awt Desktop]
+           [java.nio.file Files LinkOption Path]
            [javafx.application Platform]
            [javafx.beans.property SimpleStringProperty]
            [javafx.event EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Alert Alert$AlertType ButtonType ContextMenu Label ListView MenuItem
-            ProgressBar Tab TabPane TableColumn TableView TreeCell TreeItem TreeView]
+           [javafx.scene.control Alert Alert$AlertType Button ButtonType ContextMenu Label ListView MenuItem
+            ProgressBar SplitPane Tab TabPane TableColumn TableView TextInputDialog TreeCell TreeItem TreeView]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane Pane VBox]
-           [javafx.stage DirectoryChooser FileChooser Stage]))
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage]))
 
 (defonce ^:private state
   (atom {:stage nil
@@ -252,6 +254,10 @@
       (.setText ^Label (lookup (:root @state) "project-status-label") (:name loaded))
       (refresh-tree!)
       (status! (str "Opened " (:pack-path loaded)))
+      (when-let [entry (:entry loaded)]
+        (let [entry-path (.resolve (project/->path (:root-path loaded)) entry)]
+          (when (Files/isRegularFile entry-path (make-array LinkOption 0))
+            (open-file! entry-path))))
       loaded)
     (catch Exception cause
       (show-error! "Invalid CartDark project" (.getMessage cause))
@@ -262,6 +268,32 @@
     (.setTitle chooser "Open CartDark Project")
     (when-let [directory (.showDialog chooser ^Stage (:stage @state))]
       (set-project! (.toPath directory)))))
+
+(declare ask-name)
+
+(defn- choose-pack! []
+  (let [chooser (FileChooser.)]
+    (.setTitle chooser "Open CartDark pack.json")
+    (.add (.getExtensionFilters chooser)
+          (FileChooser$ExtensionFilter. "CartDark project (pack.json)"
+                                        (into-array String ["pack.json"])))
+    (when-let [file (.showOpenDialog chooser ^Stage (:stage @state))]
+      (set-project! (.toPath file)))))
+
+(defn- configure-tools! []
+  (let [settings (:settings @state)
+        pack-path (ask-name "xhgc-pack executable or directory"
+                            (or (:xhgc-pack-path settings) ""))
+        simulator-path (when (some? pack-path)
+                         (ask-name "cartdesk-simulator executable or directory"
+                                   (or (:simulator-path settings) "")))]
+    (when (and (some? pack-path) (some? simulator-path))
+      (let [updated (assoc settings
+                           :xhgc-pack-path (not-empty (string/trim pack-path))
+                           :simulator-path (not-empty (string/trim simulator-path)))]
+        (preferences/save! updated)
+        (swap! state assoc :settings updated)
+        (status! "Tool settings saved")))))
 
 (defn- add-build-error! [error]
   (ui!
@@ -287,6 +319,7 @@
             ^ProgressBar progress (lookup (:root @state) "progress-bar")]
         (.clear (.getItems errors))
         (.setVisible progress true)
+        (.setVisible ^Button (lookup (:root @state) "cancel-build-button") true)
         (.setProgress progress ProgressBar/INDETERMINATE_PROGRESS)
         (status! "Building cart.bin…")
         (try
@@ -303,6 +336,7 @@
                      (ui!
                        #(do
                           (.setVisible progress false)
+                          (.setVisible ^Button (lookup (:root @state) "cancel-build-button") false)
                           (status! (if success?
                                      (str "Build succeeded: " output)
                                      (str "Build failed with exit code " exit-code)))))
@@ -318,6 +352,7 @@
             (swap! state assoc :active-build handle))
           (catch Exception cause
             (.setVisible progress false)
+            (.setVisible ^Button (lookup (:root @state) "cancel-build-button") false)
             (status! "Build could not start")
             (show-error! "Build failed" (.getMessage cause))))))))
 
@@ -330,16 +365,111 @@
   (let [root (:root @state)
         handler (fn [f] (reify EventHandler (handle [_ _] (f))))]
     (.setOnAction ^MenuItem (lookup root "open-project-menu") (handler choose-project!))
+    (.setOnAction ^MenuItem (lookup root "open-pack-menu") (handler choose-pack!))
     (.setOnAction ^MenuItem (lookup root "save-menu") (handler save-current!))
     (.setOnAction ^MenuItem (lookup root "save-all-menu") (handler save-all!))
     (.setOnAction ^MenuItem (lookup root "reopen-menu") (handler reopen-closed!))
+    (.setOnAction ^MenuItem (lookup root "settings-menu") (handler configure-tools!))
     (.setOnAction ^MenuItem (lookup root "refresh-menu") (handler refresh-tree!))
     (.setOnAction ^MenuItem (lookup root "build-menu") (handler #(build! false false)))
     (.setOnAction ^MenuItem (lookup root "rebuild-menu") (handler #(build! true false)))
-    (.setOnAction ^MenuItem (lookup root "run-menu") (handler #(build! false true)))))
+    (.setOnAction ^MenuItem (lookup root "run-menu") (handler #(build! false true)))
+    (.setOnAction
+      ^Button (lookup root "cancel-build-button")
+      (handler
+        #(when-let [cancel! (get-in @state [:active-build :cancel!])]
+           (cancel!)
+           (swap! state assoc :active-build nil)
+           (.setVisible ^Button (lookup root "cancel-build-button") false)
+           (status! "Build cancelled"))))))
+
+(defn- ask-name [title initial]
+  (let [dialog (TextInputDialog. initial)]
+    (.setTitle dialog title)
+    (.setHeaderText nil)
+    (.orElse (.showAndWait dialog) nil)))
+
+(defn- selected-tree-path []
+  (some-> ^TreeView (lookup (:root @state) "project-tree")
+          .getSelectionModel .getSelectedItem .getValue))
+
+(defn- tree-parent [^Path path]
+  (if (Files/isDirectory path (make-array LinkOption 0)) path (.getParent path)))
+
+(defn- confirm-delete-path! [^Path path]
+  (let [alert (Alert. Alert$AlertType/CONFIRMATION
+                      (str "Delete " path "?")
+                      (into-array ButtonType [ButtonType/OK ButtonType/CANCEL]))]
+    (.setTitle alert "Delete")
+    (.setHeaderText "This operation cannot be undone by CartDark Studio.")
+    (= ButtonType/OK (.orElse (.showAndWait alert) ButtonType/CANCEL))))
+
+(defn- tree-context-menu []
+  (let [menu (ContextMenu.)
+        new-lua (MenuItem. "New Lua File…")
+        new-folder (MenuItem. "New Folder…")
+        rename (MenuItem. "Rename…")
+        delete (MenuItem. "Delete")
+        refresh (MenuItem. "Refresh")
+        reveal (MenuItem. "Show in File Manager")
+        copy-absolute (MenuItem. "Copy Absolute Path")
+        copy-relative (MenuItem. "Copy Project-relative Path")
+        root #(some-> @state :project :root-path project/->path)
+        selected #(selected-tree-path)]
+    (.setOnAction new-lua
+                  (reify EventHandler
+                    (handle [_ _]
+                      (when-let [path (selected)]
+                        (when-let [name (ask-name "New Lua File" "script.lua")]
+                          (project-tree/create-lua-file! (root) (.resolve (tree-parent path) name))
+                          (refresh-tree!))))))
+    (.setOnAction new-folder
+                  (reify EventHandler
+                    (handle [_ _]
+                      (when-let [path (selected)]
+                        (when-let [name (ask-name "New Folder" "folder")]
+                          (project-tree/create-directory! (root) (.resolve (tree-parent path) name))
+                          (refresh-tree!))))))
+    (.setOnAction rename
+                  (reify EventHandler
+                    (handle [_ _]
+                      (when-let [path (selected)]
+                        (when (not= (.normalize path) (.normalize (root)))
+                          (when-let [name (ask-name "Rename" (str (.getFileName path)))]
+                            (project-tree/rename! (root) path (.resolve (.getParent path) name))
+                            (refresh-tree!)))))))
+    (.setOnAction delete
+                  (reify EventHandler
+                    (handle [_ _]
+                      (when-let [path (selected)]
+                        (when (and (not= (.normalize path) (.normalize (root)))
+                                   (confirm-delete-path! path))
+                          (project-tree/delete! (root) path)
+                          (refresh-tree!))))))
+    (.setOnAction refresh (reify EventHandler (handle [_ _] (refresh-tree!))))
+    (.setOnAction reveal
+                  (reify EventHandler
+                    (handle [_ _]
+                      (when-let [path (selected)]
+                        (.open (Desktop/getDesktop)
+                               (.toFile (if (Files/isDirectory path (make-array LinkOption 0))
+                                          path
+                                          (.getParent path))))))))
+    (.setOnAction copy-absolute
+                  (reify EventHandler (handle [_ _] (some-> (selected) str clipboard!))))
+    (.setOnAction copy-relative
+                  (reify EventHandler
+                    (handle [_ _]
+                      (when-let [path (selected)]
+                        (clipboard! (project/relative-path (:project @state) path))))))
+    (.addAll (.getItems menu)
+             (into-array MenuItem
+                         [new-lua new-folder rename delete refresh reveal copy-absolute copy-relative]))
+    menu))
 
 (defn- configure-tree! []
   (let [^TreeView tree (lookup (:root @state) "project-tree")]
+    (.setContextMenu tree (tree-context-menu))
     (.setCellFactory
       tree
       (reify javafx.util.Callback
@@ -363,6 +493,49 @@
                          (Files/isRegularFile path (make-array LinkOption 0)))
                   (open-file! path))))))))))
 
+(defn- persist-workspace! []
+  (let [^Stage stage (:stage @state)
+        ^SplitPane main (lookup (:root @state) "main-split")
+        ^SplitPane center (lookup (:root @state) "center-split")
+        active (some-> (selected-tab) entry-for-tab :path str)
+        settings (-> (:settings @state)
+                     (assoc :window {:x (.getX stage) :y (.getY stage)
+                                     :width (.getWidth stage) :height (.getHeight stage)}
+                            :panels {:main (vec (.getDividerPositions main))
+                                     :center (vec (.getDividerPositions center))}
+                            :open-files (mapv (comp str :path) (vals (:documents @state)))
+                            :active-tab active))]
+    (preferences/save! settings)
+    (swap! state assoc :settings settings)))
+
+(defn- restore-window! []
+  (let [^Stage stage (:stage @state)
+        {:keys [x y width height]} (get-in @state [:settings :window])]
+    (when (number? width) (.setWidth stage width))
+    (when (number? height) (.setHeight stage height))
+    (when (number? x) (.setX stage x))
+    (when (number? y) (.setY stage y))))
+
+(defn- restore-workspace! []
+  (let [settings (:settings @state)
+        root (some-> @state :project :root-path project/->path)]
+    (when-let [positions (get-in settings [:panels :main])]
+      (.setDividerPositions ^SplitPane (lookup (:root @state) "main-split")
+                            (double-array positions)))
+    (when-let [positions (get-in settings [:panels :center])]
+      (.setDividerPositions ^SplitPane (lookup (:root @state) "center-split")
+                            (double-array positions)))
+    (when root
+      (doseq [file (:open-files settings)
+              :let [path (project/->path file)]
+              :when (and (.startsWith (.toAbsolutePath path) (.toAbsolutePath root))
+                         (Files/isRegularFile path (make-array LinkOption 0)))]
+        (open-file! path))
+      (when-let [active (:active-tab settings)]
+        (when-let [entry (get-in @state [:documents (-> active project/->path .toAbsolutePath .normalize)])]
+          (.select (.getSelectionModel ^TabPane (lookup (:root @state) "editor-tabs"))
+                   ^Tab (:tab entry)))))))
+
 (defn open-project!
   "Creates the CartDark main window and optionally opens a project directory or pack.json."
   [selection]
@@ -382,6 +555,7 @@
     (code-view/initialize! (:code-prefs @state))
     (.setTitle stage "CartDark Studio")
     (.setScene stage (Scene. root 1240.0 800.0))
+    (restore-window!)
     (configure-build-table!)
     (configure-tree!)
     (wire-actions!)
@@ -390,8 +564,11 @@
       (reify EventHandler
         (handle [_ event]
           (when-not (every? confirm-close! (vals (:documents @state)))
-            (.consume event)))))
+            (.consume event))
+          (when-not (.isConsumed event)
+            (persist-workspace!)))))
     (.show stage)
     (when selection
-      (set-project! selection))
+      (when (set-project! selection)
+        (restore-workspace!)))
     stage))

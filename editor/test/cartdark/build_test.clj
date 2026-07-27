@@ -22,6 +22,10 @@
   (is (= {:kind :console :text "Building entry chunk"}
          (build/parse-log-line "Building entry chunk"))))
 
+(deftest keeps-json-progress-events-out-of-build-errors
+  (is (= {:kind :event :value {:step "entry" :done 2} :text "{\"step\":\"entry\",\"done\":2}"}
+         (build/parse-log-line "{\"step\":\"entry\",\"done\":2}"))))
+
 (deftest handles-process-exit-code-and-streams
   (let [lines (atom [])
         result (process/run! {:command ["sh" "-c" "printf 'ok\\n'; printf 'bad\\n' >&2; exit 7"]
