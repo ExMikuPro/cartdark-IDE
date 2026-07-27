@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<StackPane fx:id="cartdark_root" prefHeight="800.0" prefWidth="1240.0"
+           stylesheets="@cartdark-studio.css"
+           xmlns="http://javafx.com/javafx/25"
+           xmlns:fx="http://javafx.com/fxml/1">
+  <VBox>
+    <MenuBar>
+      <menus>
+        <Menu text="File">
+          <items>
+            <MenuItem fx:id="open_project_menu" text="Open Project…" />
+            <SeparatorMenuItem />
+            <MenuItem fx:id="save_menu" text="Save" accelerator="Shortcut+S" />
+            <MenuItem fx:id="save_all_menu" text="Save All" accelerator="Shortcut+Shift+S" />
+            <MenuItem fx:id="reopen_menu" text="Reopen Closed Tab" accelerator="Shortcut+Shift+T" />
+          </items>
+        </Menu>
+        <Menu text="Edit" />
+        <Menu text="View" />
+        <Menu text="Project">
+          <items><MenuItem fx:id="refresh_menu" text="Refresh Project Tree" /></items>
+        </Menu>
+        <Menu text="Build">
+          <items>
+            <MenuItem fx:id="build_menu" text="Build Cart" accelerator="Shortcut+B" />
+            <MenuItem fx:id="rebuild_menu" text="Rebuild Cart" accelerator="Shortcut+Shift+B" />
+          </items>
+        </Menu>
+        <Menu text="Run">
+          <items><MenuItem fx:id="run_menu" text="Build and Run" accelerator="Shortcut+R" /></items>
+        </Menu>
+        <Menu text="Device" />
+        <Menu text="Help" />
+      </menus>
+    </MenuBar>
+    <SplitPane fx:id="main_split" dividerPositions="0.20,0.80" VBox.vgrow="ALWAYS">
+      <items>
+        <VBox minWidth="180.0" prefWidth="240.0">
+          <Label text="PROJECT" styleClass="panel-title" />
+          <TreeView fx:id="project_tree" VBox.vgrow="ALWAYS" />
+        </VBox>
+        <SplitPane fx:id="center_split" orientation="VERTICAL" dividerPositions="0.70">
+          <items>
+            <TabPane fx:id="editor_tabs" tabClosingPolicy="ALL_TABS" />
+            <TabPane fx:id="tool_tabs" tabClosingPolicy="UNAVAILABLE">
+              <tabs>
+                <Tab text="Console"><ListView fx:id="console_list" /></Tab>
+                <Tab text="Build Errors">
+                  <TableView fx:id="build_errors_table">
+                    <columns>
+                      <TableColumn text="Severity" prefWidth="90.0" />
+                      <TableColumn text="Message" prefWidth="420.0" />
+                      <TableColumn text="File" prefWidth="200.0" />
+                      <TableColumn text="Line" prefWidth="70.0" />
+                      <TableColumn text="Column" prefWidth="70.0" />
+                      <TableColumn text="Step" prefWidth="130.0" />
+                    </columns>
+                  </TableView>
+                </Tab>
+                <Tab text="Search"><ListView fx:id="search_list" /></Tab>
+                <Tab text="Serial"><ListView fx:id="serial_list" /></Tab>
+                <Tab text="Runtime Stats"><VBox fx:id="runtime_stats" /></Tab>
+              </tabs>
+            </TabPane>
+          </items>
+        </SplitPane>
+        <VBox minWidth="190.0" prefWidth="250.0">
+          <Label text="PROPERTIES" styleClass="panel-title" />
+          <GridPane fx:id="properties_grid" hgap="8.0" vgap="8.0" styleClass="properties-grid">
+            <children>
+              <Label text="No selection" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+            </children>
+          </GridPane>
+        </VBox>
+      </items>
+    </SplitPane>
+    <HBox fx:id="status_bar" spacing="12.0">
+      <Label fx:id="status_label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+      <Label fx:id="project_status_label" text="No project" />
+      <ProgressBar fx:id="progress_bar" visible="false" prefWidth="140.0" />
+    </HBox>
+  </VBox>
+  <StackPane fx:id="global_overlay" visible="false" styleClass="global-overlay">
+    <ProgressIndicator />
+  </StackPane>
+</StackPane>

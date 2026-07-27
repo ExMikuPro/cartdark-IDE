@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "environment": "CartDark firmware",
+  "lifecycle": [
+    {"name": "init", "parameters": []},
+    {"name": "fixed_update", "parameters": [{"name": "dt", "type": "number"}]},
+    {"name": "update", "parameters": [{"name": "dt", "type": "number"}]},
+    {"name": "late_update", "parameters": [{"name": "dt", "type": "number"}]},
+    {"name": "on_input", "parameters": [{"name": "action_id", "type": "string"}, {"name": "action", "type": "table"}]},
+    {"name": "on_message", "parameters": [{"name": "message_id", "type": "string"}, {"name": "message", "type": "table"}, {"name": "sender", "type": "any"}]},
+    {"name": "on_reload", "parameters": []},
+    {"name": "final", "parameters": []}
+  ],
+  "modules": [
+    {"name": "ui"},
+    {"name": "gpio"},
+    {"name": "pwm"},
+    {"name": "tim"},
+    {"name": "rng"},
+    {"name": "crc"}
+  ],
+  "globals": [
+    {"name": "delay", "parameters": [{"name": "milliseconds", "type": "integer"}]}
+  ],
+  "unavailable_standard_modules": [
+    {"name": "io", "severity": "warning"},
+    {"name": "os", "severity": "warning"},
+    {"name": "debug", "severity": "warning"},
+    {"name": "package", "severity": "warning"}
+  ]
+}

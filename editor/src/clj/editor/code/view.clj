@@ -11,6 +11,8 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+;;
+;; Modified for CartDark Studio by ExMikuPro.
 
 (ns editor.code.view
   (:require [cljfx.api :as fx]
@@ -42,7 +44,6 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
-            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
@@ -1214,7 +1215,8 @@
                       (into (set-properties view-node nil {:rename-cursor-range nil})
                             (mapcat
                               (fn [[resource ascending-cursor-ranges-and-replacements]]
-                                (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
+                                (when-let [resource-node ((requiring-resolve 'editor.defold-project/get-resource-node)
+                                                         project resource evaluation-context)]
                                   (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
                                     (if-let [view (resource->view resource)]
                                       (set-properties
@@ -4363,6 +4365,119 @@
     (ui/run-later (repaint-view! view-node 0 {:cursor-visible true :editable editable})
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
+
+;; CartDark Studio standalone host for the native Defold CodeEditorView.
+;; This keeps the Canvas renderer and Dynamo Graph editing transactions while
+;; avoiding Defold Project, Game Resource, Bob, engine, and target systems.
+(defn make-standalone-view!
+  [graph ^Pane parent resource-node grammar prefs on-lines-changed]
+  (let [canvas (Canvas.)
+        canvas-pane (Pane. (into-array Node [canvas]))
+        undo-grouping-info (pair :navigation (gensym))
+        view-node (g/make-node! graph CodeEditorView
+                                :canvas canvas
+                                :color-scheme code-color-scheme
+                                :font-size (.getValue font-size-property)
+                                :font-name (.getValue font-name-property)
+                                :grammar grammar
+                                :gutter-view (->CodeEditorGutterView)
+                                :highlighted-find-term ""
+                                :line-height-factor 1.2
+                                :undo-grouping-info undo-grouping-info
+                                :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                                :visible-minimap? (.getValue visible-minimap-property)
+                                :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property)))
+        notify-lines-changed! (fn []
+                                (when on-lines-changed
+                                  (on-lines-changed (g/node-value resource-node :modified-lines))))
+        repainter (ui/->timer "repaint-cartdark-code-editor"
+                              (fn [_ elapsed-time _]
+                                (repaint-view! view-node elapsed-time
+                                               {:cursor-visible true :editable true})))]
+    (g/transact
+      (concat
+        (g/connect resource-node :_node-id view-node :resource-node)
+        (g/connect resource-node :_node-id view-node :project)
+        (g/connect resource-node :completions view-node :completions)
+        (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+        (g/connect resource-node :indent-type view-node :indent-type)
+        (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
+        (g/connect resource-node :lines view-node :lines)
+        (g/connect resource-node :resource-properties view-node :resource-properties)
+        (g/connect resource-node :regions view-node :regions)
+        (g/connect resource-node :keymap view-node :keymap)
+        (g/connect resource-node :open-views view-node :open-views)))
+    (g/with-auto-evaluation-context evaluation-context
+      (g/transact (update-document-width evaluation-context view-node)))
+
+    (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
+    (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
+    (ui/observe (.widthProperty canvas)
+                (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
+    (ui/observe (.heightProperty canvas)
+                (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+
+    (doto canvas
+      (.setFocusTraversable true)
+      (.setCursor javafx.scene.Cursor/TEXT)
+      (.addEventFilter
+        KeyEvent/KEY_PRESSED
+        (ui/event-handler event
+          (let [^KeyEvent event event
+                before (g/node-value resource-node :modified-lines)]
+            (cond
+              (and (.isShortcutDown event) (= KeyCode/Z (.getCode event)))
+              (do
+                (if (.isShiftDown event) (g/redo! graph) (g/undo! graph))
+                (.consume event))
+
+              (= KeyCode/BACK_SPACE (.getCode event))
+              (do (delete! view-node prefs :delete-before) (.consume event))
+
+              (= KeyCode/DELETE (.getCode event))
+              (do (delete! view-node prefs :delete-after) (.consume event))
+
+              (= KeyCode/TAB (.getCode event))
+              (do (insert-text! view-node prefs "\t") (.consume event))
+
+              :else
+              (handle-key-pressed! view-node prefs event true))
+            (when (not= before (g/node-value resource-node :modified-lines))
+              (notify-lines-changed!)))))
+      (.addEventHandler
+        KeyEvent/KEY_TYPED
+        (ui/event-handler event
+          (let [before (g/node-value resource-node :modified-lines)]
+            (handle-key-typed! view-node prefs event)
+            (when (not= before (g/node-value resource-node :modified-lines))
+              (notify-lines-changed!)))))
+      (.addEventHandler MouseEvent/MOUSE_MOVED
+                        (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_PRESSED
+                        (ui/event-handler event (handle-mouse-pressed! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_DRAGGED
+                        (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_RELEASED
+                        (ui/event-handler event (handle-mouse-released! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_EXITED
+                        (ui/event-handler event (handle-mouse-exited! view-node event)))
+      (.addEventHandler ScrollEvent/SCROLL
+                        (ui/event-handler event
+                          (handle-scroll! view-node
+                                          (prefs/get prefs [:code :zoom-on-scroll])
+                                          event))))
+    (setup-input-method-requests! canvas view-node prefs)
+    (ui/children! parent [canvas-pane])
+    (ui/fill-control canvas-pane)
+    (ui/timer-start! repainter)
+    (ui/run-later
+      (.requestFocus canvas)
+      (repaint-view! view-node 0 {:cursor-visible true :editable true}))
+    {:view-node view-node
+     :canvas canvas
+     :dispose! (fn []
+                 (ui/timer-stop! repainter)
+                 (g/delete-node! view-node))}))
 
 (def ^:private fundamental-read-only-handlers
   {[:view/code.select-up]

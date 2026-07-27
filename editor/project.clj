@@ -11,6 +11,8 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+;;
+;; Modified for CartDark Studio by ExMikuPro.
 
 (defn- pathname
   ^String [^java.io.File file]
@@ -144,7 +146,11 @@
                       :output-directory "resources/"
                       :source-maps false}
 
-  :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
+  :aliases           {"run-cartdark" ["run" "-m" "com.cartdark.studio.Main"]
+                      "test-cartdark" ["test" "cartdark.project-test" "cartdark.text-document-test"
+                                      "cartdark.build-test" "cartdark.preferences-test"
+                                      "cartdark.lua-api-test"]
+                      "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
                       "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]
                       "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 

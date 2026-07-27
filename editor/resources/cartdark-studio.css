@@ -1,0 +1,49 @@
+/*
+ * Copyright 2026 ExMikuPro
+ * Licensed under the Defold License version 1.0.
+ */
+
+.root {
+    -fx-base: #20242b;
+    -fx-background: #181b20;
+    -fx-control-inner-background: #1d2128;
+    -fx-accent: #f26d3d;
+    -fx-focus-color: #f26d3d;
+    -fx-faint-focus-color: rgba(242, 109, 61, 0.18);
+    -fx-font-family: "Inter", "Noto Sans", sans-serif;
+    -fx-text-fill: #dce1e8;
+}
+
+.menu-bar, #status-bar, .panel-title {
+    -fx-background-color: #14171c;
+}
+
+.panel-title {
+    -fx-text-fill: #aeb7c2;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 9 10 8 10;
+}
+
+.tree-view, .tab-pane, .table-view, .list-view {
+    -fx-background-color: #1b1f25;
+    -fx-border-color: #2b313a;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: #282e37;
+    -fx-border-color: transparent transparent #f26d3d transparent;
+}
+
+.properties-grid {
+    -fx-padding: 12;
+}
+
+#status-bar {
+    -fx-padding: 5 10;
+    -fx-border-color: #2b313a transparent transparent transparent;
+}
+
+.global-overlay {
+    -fx-background-color: rgba(10, 12, 15, 0.78);
+}
