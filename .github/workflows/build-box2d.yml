@@ -45,7 +45,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (common)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-common.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-common.tar.gz
@@ -53,7 +53,7 @@ jobs:
           retention-days: 1
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -97,7 +97,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -141,7 +141,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -192,7 +192,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.lib' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -236,7 +236,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -308,7 +308,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -361,7 +361,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
